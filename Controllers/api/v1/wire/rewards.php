@@ -42,28 +42,33 @@ class rewards implements Interfaces\Api
         $response = [];
 
         $response['username'] = $user->username;
-        $response['wire_rewards'] = $user->getWireRewards() ?: null;
+
+        $response['wire_rewards'] = $user->getWireRewards() ?: [];
 
         if (is_string($response['wire_rewards'])) {
             $response['wire_rewards'] = json_decode($response['wire_rewards'], true);
         }
 
+        $response['wire_rewards'] = array_replace_recursive([
+            'description' => '',
+            'rewards' => [
+                'tokens' => []
+            ]
+        ], $response['wire_rewards']);
+
         $response['merchant'] = $user->getMerchant() ?: false;
+        $response['eth_wallet'] = $user->getEthWallet() ?: '';
 
         // Sums
-        $repository = Core\Di\Di::_()->get('Wire\Repository');
+        /** @var Sums $sums */
+        $sums = Core\Di\Di::_()->get('Wire\Sums');
+        $sums->setFrom((new \DateTime('midnight'))->modify("-30 days")->getTimestamp())
+            ->setReceiver($user)
+            ->setSender(Core\Session::getLoggedInUser());
 
-        $from = Core\Session::getLoggedInUser()->guid;
-        $timeRange = (new \DateTime('midnight'))->modify("-30 days");
-
-        $response['sums'] = [
-            'points' => $repository->getSumBySenderForReceiver($from, $user->guid, 'points', $timeRange),
-            'money' => 0
+        $response['sums'] = [ 
+            'tokens' => $sums->getSent()
         ];
-
-        if ($user->getMerchant()) {
-            $response['sums']['money'] = $repository->getSumBySenderForReceiver($from, $user->guid, 'money', $timeRange);
-        }
 
         return Factory::response($response);
     }
@@ -78,11 +83,8 @@ class rewards implements Interfaces\Api
 
         if ($rewards) {
             if (
-                !isset($rewards['description']) ||
-                !isset($rewards['rewards']['points']) ||
-                !is_array($rewards['rewards']['points']) ||
-                !isset($rewards['rewards']['money']) ||
-                !is_array($rewards['rewards']['money'])
+                !isset($rewards['rewards']['tokens']) ||
+                !is_array($rewards['rewards']['tokens'])
             ) {
                 return Factory::response([
                     'status' => 'error',

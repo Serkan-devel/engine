@@ -25,13 +25,26 @@ class User extends \ElggUser
         $this->attributes['programs'] = [];
         $this->attributes['monetization_settings'] = [];
         $this->attributes['group_membership'] = [];
-        $this->attributes['plus'] = 0;
+        $this->attributes['plus'] = 0; //TODO: REMOVE
+        $this->attributes['plus_expires'] = 0;
         $this->attributes['verified'] = 0;
         $this->attributes['founder'] = 0;
         $this->attributes['disabled_boost'] = 0;
+        $this->attributes['boost_autorotate'] = 1;
         $this->attributes['categories'] = [];
         $this->attributes['wire_rewards'] = '';
         $this->attributes['pinned_posts'] = [];
+        $this->attributes['eth_wallet'] = '';
+        $this->attributes['eth_incentive'] = '';
+        $this->attributes['phone_number'] = null;
+        $this->attributes['phone_number_hash'] = null;
+        $this->attributes['icontime'] = time();
+		$this->attributes['briefdescription'] = '';
+		$this->attributes['rating'] = 1;
+		$this->attributes['p2p_media_disabled'] = 0;
+		$this->attributes['is_mature'] = 0;
+		$this->attributes['mature_lock'] = 0;
+		$this->attributes['last_accepted_tos'] = 0;
 
         parent::initializeAttributes();
     }
@@ -57,23 +70,23 @@ class User extends \ElggUser
     }
 
     /**
+     * Gets the `mature` flag
+     * @return bool|int
+     */
+    public function getViewMature()
+    {
+      return $this->attributes['mature'];
+    }
+
+    /**
      * Sets the `mature` flag
      * @param  bool|int $value
      * @return $this
      */
-    public function setMature($value)
+    public function setViewMature($value)
     {
         $this->mature = $value ? 1 : 0;
         return $this;
-    }
-
-    /**
-     * Gets the `mature` flag
-     * @return bool|int
-     */
-    public function getMature()
-    {
-      return $this->mature;
     }
 
     /**
@@ -190,6 +203,42 @@ class User extends \ElggUser
             return $this->email;
         }
         return Helpers\OpenSSL::decrypt(base64_decode($this->email), file_get_contents($CONFIG->encryptionKeys['email']['private']));
+    }
+
+    /**
+     * Sets and encrypts a users phone number
+     * @param  string $phone
+     * @return $this
+     */
+    public function setPhoneNumber($phone)
+    {
+        global $CONFIG; //@todo use object config instead
+        $this->phone_number = base64_encode(Helpers\OpenSSL::encrypt($phone, file_get_contents($CONFIG->encryptionKeys['phone-number']['public'])));
+        return $this;
+    }
+
+    /**
+     * Returns and decrypts an phone number
+     * @return $this
+     */
+    public function getPhoneNumber()
+    {
+        global $CONFIG; //@todo use object config instead
+        if ($this->phone_number && !base64_decode($this->phone_number, true)) {
+            return $this->phone_number;
+        }
+        return Helpers\OpenSSL::decrypt(base64_decode($this->phone_number), file_get_contents($CONFIG->encryptionKeys['phone-number']['private']));
+    }
+
+    public function setPhoneNumberHash($hash)
+    {
+        $this->phone_number_hash = $hash;
+        return $this;
+    }
+
+    public function getPhoneNumberHash()
+    {
+        return $this->phone_number_hash;
     }
 
     /**
@@ -395,6 +444,26 @@ class User extends \ElggUser
     }
 
     /**
+     * Sets the `boost autorotate` flag
+     * @param  bool $value
+     * @return $this
+     */
+    public function setBoostAutorotate($value)
+    {
+        $this->boost_autorotate = (bool) $value;
+        return $this;
+    }
+
+    /**
+     * Gets the `boost autorotate` flag
+     * @return bool
+     */
+    public function getBoostAutorotate()
+    {
+        return (bool) $this->boost_autorotate;
+    }
+
+    /**
      * Subscribes user to another user
      * @param  mixed  $guid
      * @param  array  $data - metadata
@@ -522,16 +591,16 @@ class User extends \ElggUser
         return $this;
     }
 
-    /**
-     * Set the secret key for clusters to use
-     * @todo - should we use oauth2 instead. should this be stored in its own row rather than in the user object?
-     * @param string $host
-     */
-    public function setSecretKey($host)
+
+    public function isP2PMediaDisabled()
     {
-        $key = "secret:" . serialize($host);
-        $this->$key = core\clusters::generateSecret();
-        $this->save();
+        return (bool) $this->attributes['p2p_media_disabled'];
+    }
+
+    public function toggleP2PMediaDisabled($value)
+    {
+        $this->attributes['p2p_media_disabled'] = (bool) $value;
+        return $this;
     }
 
     /**
@@ -542,6 +611,7 @@ class User extends \ElggUser
     {
         $export = parent::export();
         $export['guid'] = (string) $this->guid;
+        $export['name'] = htmlspecialchars_decode($this->name);
 
         if ($this->fullExport) {
             if (Core\Session::isLoggedIn()) {
@@ -563,16 +633,19 @@ class User extends \ElggUser
 
         $export['merchant'] = $this->getMerchant() ?: false;
         $export['programs'] = $this->getPrograms();
-        $export['plus'] = $this->getPlus();
+        $export['plus'] = (bool) $this->isPlus();
         $export['verified'] = (bool) $this->verified;
         $export['founder'] = (bool) $this->founder;
         $export['disabled_boost'] = (bool) $this->disabled_boost;
+        $export['boost_autorotate'] = (bool) $this->getBoostAutorotate();
         $export['categories'] = $this->getCategories();
         $export['pinned_posts'] = $this->getPinnedPosts();
-
-        if (isset($export['mature'])) {
-            $export['mature'] = (int) $export['mature'];
-        }
+        $export['rewards'] = (bool) $this->getPhoneNumberHash();
+        $export['p2p_media_disabled'] = $this->isP2PMediaDisabled();
+        $export['is_mature'] = $this->isMature();
+        $export['mature_lock'] = $this->getMatureLock();
+        $export['mature'] = (int) $this->getViewMature();
+        $export['last_accepted_tos'] = (int) $this->getLastAcceptedTOS();
 
         if (is_string($export['social_profiles'])) {
             $export['social_profiles'] = json_decode($export['social_profiles']);
@@ -595,6 +668,9 @@ class User extends \ElggUser
             $export['deleted'] = $this->getDeleted();
         }
 
+        $export['eth_wallet'] = $this->getEthWallet() ?: '';
+        $export['rating'] = $this->getRating();
+
         return $export;
     }
 
@@ -616,7 +692,26 @@ class User extends \ElggUser
      */
     public function getPlus()
     {
-        return (bool) $this->plus;
+        return $this->isPlus();
+    }
+
+    /**
+     * Is the user a plus user
+     * @return int
+     */
+    public function isPlus()
+    {
+        return (bool) ((int) $this->plus_expires > time());
+    }
+
+    /**
+     * Set plus expires
+     * @var int $expires
+     */
+    public function setPlusExpires($expires)
+    {
+        $this->plus_expires = $expires;
+        return $this;
     }
 
     /**
@@ -641,6 +736,42 @@ class User extends \ElggUser
         $this->categories = $value;
     }
 
+    /**
+     * @return string
+     */
+    public function getEthWallet()
+    {
+        return $this->eth_wallet ?: '';
+    }
+
+    /**
+     * @param string $eth_wallet
+     * @return $this
+     */
+    public function setEthWallet($eth_wallet)
+    {
+        $this->eth_wallet = $eth_wallet ?: '';
+
+        return $this;
+    }
+
+    /**
+     * @param string $eth_incentive
+     * @return User
+     */
+    public function setEthIncentive($eth_incentive = '')
+    {
+        $this->eth_incentive = $eth_incentive;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getEthIncentive()
+    {
+        return $this->eth_incentive;
+    }
 
     /**
      * Gets the user's icon URL
@@ -651,6 +782,60 @@ class User extends \ElggUser
     {
         $join_date = $this->getTimeCreated();
         return elgg_get_site_url() . "icon/$this->guid/$size/$join_date/$this->icontime/" . Core\Config::_()->lastcache;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isMature()
+    {
+        return (bool) $this->is_mature;
+    }
+
+    /**
+     * @param bool $value
+     * @return $this
+     */
+    public function setMature($value)
+    {
+        $this->is_mature = (bool) $value;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getMatureLock()
+    {
+        return (bool) $this->mature_lock;
+    }
+
+    /**
+     * @param bool $value
+     * @return $this
+     */
+    public function setMatureLock($value)
+    {
+        $this->mature_lock = $value;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLastAcceptedTOS()
+    {
+        return $this->last_accepted_tos ?: 0;
+    }
+
+    /**
+     * @param int $value
+     * @return $this
+     */
+    public function setLastAcceptedTOS($value)
+    {
+        $this->last_accepted_tos = $value;
+        return $this;
     }
 
     /**
@@ -679,9 +864,13 @@ class User extends \ElggUser
             'verified',
             'founder',
             'disabled_boost',
+            'boost_autorotate',
             'categories',
             'wire_rewards',
-            'pinned_posts'
+            'pinned_posts',
+            'is_mature',
+            'mature_lock',
+            'last_accepted_tos',
         ));
     }
 }

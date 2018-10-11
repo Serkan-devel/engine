@@ -5,6 +5,7 @@
 
 namespace Minds\Core\Data;
 
+use Minds\Core\Data\Locks;
 use Minds\Core\Di\Provider;
 
 class DataProvider extends Provider
@@ -38,11 +39,17 @@ class DataProvider extends Provider
         $this->di->bind('Database\Cassandra\Entities', function ($di) {
             return new Call('entities');
         }, ['useFactory'=>false]);
+        $this->di->bind('Database\Cassandra\UserIndexes', function ($di) {
+            return new Call('user_index_to_guid');
+        }, ['useFactory'=>false]);
         $this->di->bind('Database\Cassandra\Indexes', function ($di) {
             return new Cassandra\Thrift\Indexes(new Call('entities_by_time'));
         }, ['useFactory'=>false]);
         $this->di->bind('Database\Cassandra\Lookup', function ($di) {
             return new Cassandra\Thrift\Lookup(new Call('user_index_to_guid'));
+        }, ['useFactory'=>false]);
+        $this->di->bind('Database\Cassandra\Data\Lookup', function ($di) {
+            return new lookup();
         }, ['useFactory'=>false]);
         $this->di->bind('Database\Cassandra\Relationships', function ($di) {
             return new Cassandra\Thrift\Relationships(new Call('relationships'));
@@ -56,6 +63,18 @@ class DataProvider extends Provider
         $this->di->bind('Database\ElasticSearch', function ($di) {
             return new ElasticSearch\Client();
         }, ['useFactory'=>true]);
+        /**
+         * Locks
+         */
+        $this->di->bind('Database\Locks\Cassandra', function ($di) {
+            return new Locks\Cassandra();
+        }, ['useFactory' => false]);
+        $this->di->bind('Database\Locks\Redis', function ($di) {
+            return new Locks\Redis();
+        }, ['useFactory' => false]);
+        $this->di->bind('Database\Locks', function ($di) {
+            return $di->get('Database\Locks\Redis');
+        }, ['useFactory' => false]);
         /**
          * PubSub bindings
          */

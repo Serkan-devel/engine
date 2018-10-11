@@ -6,7 +6,7 @@
 namespace Minds\Core\Blogs;
 
 use Minds\Core\Navigation\Item;
-use Minds\Core\Navigation\Manager;
+use Minds\Core\Navigation\Manager as NavigationManager;
 
 class Navigation
 {
@@ -47,12 +47,12 @@ class Navigation
             ->setVisibility(0); //only show for loggedin
 
         $link = new Item();
-        Manager::add($link
+        NavigationManager::add($link
             ->setPriority(4)
             ->setIcon('subject')
             ->setName('Blogs')
             ->setTitle('Blogs')
-            ->setPath('blog/trending')
+            ->setPath('blog')
             ->addSubItem($add_link)
             ->addSubItem($featured_link)
             ->addSubItem($trending_link)

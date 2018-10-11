@@ -46,11 +46,26 @@ class conversations implements Interfaces\Api
     private function getConversation($pages)
     {
         $response = [];
+        $delimiter = ':';
 
         $me = Core\Session::getLoggedInUser();
 
+        if ($pages[0]) {
+            $split_guid = explode($delimiter, $pages[0]);
+            sort($split_guid);
+            $guids = join($delimiter, $split_guid);
+        }
+
         $conversation = (new Entities\Conversation())
-          ->loadFromGuid($pages[0]);
+          ->loadFromGuid($guids);
+
+        if (!Security\ACL::_()->read($conversation)) {
+            return Factory::response([
+                'status' => 'error',
+                'message' => 'You do not have permissions to read this message'
+            ]);
+        }
+
         $messages = (new Messenger\Messages)
           ->setConversation($conversation);
 
@@ -102,7 +117,7 @@ class conversations implements Interfaces\Api
                     $_GET['decrypt'] = true;
                 }
                 if (isset($_GET['decrypt']) && $_GET['decrypt']) {
-                    $messages[$k]->decrypt(Core\Session::getLoggedInUser(), urldecode($_GET['password']));
+                    $messages[$k]->decrypt(Core\Session::getLoggedInUser(), $_COOKIE['messenger-secret']);
                 } else {
                     //support legacy clients
                     $messages[$k]->message = $messages[$k]->getMessage(Core\Session::getLoggedInUserGuid());
@@ -148,7 +163,15 @@ class conversations implements Interfaces\Api
             foreach ($response['conversations'] as $k => $v) {
                 $response['conversations'][$k]['subscribed'] = true;
                 $response['conversations'][$k]['subscriber'] = true;
+
+                //if no username, user has vanished
+                if (!$response['conversations'][$k]['username']) {
+                    unset($response['conversations'][$k]);
+                }
             }
+
+            //order needs reseting due to possible deletes
+            $response['conversations'] = array_values($response['conversations']);
 
             end($conversations);
             $response['load-next'] = (int) $_GET['offset'] + count($conversations);
@@ -163,12 +186,22 @@ class conversations implements Interfaces\Api
 
         //error_log("got a message to send");
         $conversation = new Entities\Conversation();
-        if (strpos($pages[0], ':') === false) { //legacy messages get confused here
-            $conversation->setParticipant(Core\Session::getLoggedInUserGuid())
-              ->setParticipant($pages[0]);
-        } else {
-            $conversation->setGuid($pages[0]);
+
+        $guid = "";
+
+        $split_guid = explode(":", $pages[0]);
+        sort($split_guid);
+        $guid = join(":", $split_guid);
+
+        $conversation->setGuid($guid);
+
+        if (!Security\ACL::_()->read($conversation)) {
+            return Factory::response([
+                'status' => 'error',
+                'message' => 'You do not have permissions to post to this conversation'
+            ]);
         }
+
 
         $message = (new Entities\Message())
           ->setConversation($conversation);
@@ -238,7 +271,8 @@ class conversations implements Interfaces\Api
                                       ->send([
                                             "user_guid"=>$participant,
                                             "message"=>"You have a new message.",
-                                            "uri" => 'chat'
+                                            "uri" => 'chat',
+                                            'type' => 'message'
                                         ]);
         }
 
@@ -315,11 +349,13 @@ class conversations implements Interfaces\Api
         $response = [];
 
         $conversation = new Entities\Conversation();
-        if (strpos($pages[0], ':') === false) { //legacy messages get confused here
-            $conversation->setParticipant($user)
-              ->setParticipant($pages[0]);
-        } else {
-            $conversation->setGuid($pages[0]);
+        $conversation->setGuid($pages[0]);
+
+        if (!Security\ACL::_()->read($conversation)) {
+            return Factory::response([
+                'status' => 'error',
+                'message' => 'You do not have permissions to delete this message'
+            ]);
         }
 
         $message = (new Entities\Message())

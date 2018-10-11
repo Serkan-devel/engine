@@ -19,6 +19,7 @@ class ActivityMappingSpec extends ObjectBehavior
     {
         $now = time();
 
+        $activity->get('rating')->willReturn(1);
         $activity->get('interactions')->willReturn(42);
         $activity->get('guid')->willReturn(5000);
         $activity->get('type')->willReturn('activity');
@@ -35,6 +36,7 @@ class ActivityMappingSpec extends ObjectBehavior
         $activity->get('description')->willReturn('PHPSpec Description');
         $activity->get('paywall')->willReturn(false);
 
+        $activity->isPayWall()->willReturn(false);
         $activity->getMature()->willReturn(false);
 
         $this
@@ -60,6 +62,7 @@ class ActivityMappingSpec extends ObjectBehavior
                 'blurb' => 'PHPSpec Blurb',
                 'description' => 'PHPSpec Description',
                 'paywall' => false,
+                'rating' => 1,
                 '@timestamp' => $now * 1000,
                 'taxonomy' => 'activity',
                 'public' => true,

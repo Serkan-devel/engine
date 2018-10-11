@@ -5,6 +5,7 @@ namespace Minds\Core\Boost\Peer;
 use Minds\Core;
 use Minds\Core\Data;
 use Minds\Entities;
+use Minds\Helpers\MagicAttributes;
 use Minds\Interfaces\BoostReviewInterface;
 
 class Review implements BoostReviewInterface
@@ -94,8 +95,6 @@ class Review implements BoostReviewInterface
 
         $this->boost->setState('revoked')
             ->save();
-
-        Core\Di\Di::_()->get('Boost\Payment')->refund($this->boost);
     }
 
     protected function enableBoostRejectionReasonFlag($entity = null, $reason = -1)
@@ -107,7 +106,7 @@ class Review implements BoostReviewInterface
         $dirty = false;
 
         // Main boost rejection reason flag
-        if (method_exists($entity, 'setBoostRejectionReason')) {
+        if (MagicAttributes::setterExists($entity, 'setBoostRejectionReason')) {
             $entity->setBoostRejectionReason($reason);
             $dirty = true;
         } elseif (property_exists($entity, 'boost_rejection_reason')) {

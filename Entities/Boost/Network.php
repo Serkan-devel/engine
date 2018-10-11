@@ -7,6 +7,7 @@ use Minds\Core\Di\Di;
 use Minds\Entities;
 use Minds\Entities\Entity;
 use Minds\Entities\User;
+use Minds\Helpers\Counters;
 
 /**
  * Network Boost Entity
@@ -32,11 +33,12 @@ class Network extends Entities\DenormalizedEntity implements BoostEntityInterfac
     protected $quality = 75;
     protected $categories = [];
     protected $rejection_reason = -1;
+    protected $checksum = null;
 
     protected $exportableDefaults = [
         'guid', '_id', 'entity', 'bid', 'bidType', 'destination', 'owner', 'state',
         'transactionId', 'time_created', 'last_updated', 'type', 'subtype', 'handler',
-        'rating', 'quality', 'impressions', 'categories', 'rejection_reason'
+        'rating', 'quality', 'impressions', 'categories', 'rejection_reason', 'checksum'
     ];
 
     public function __construct($db = null)
@@ -80,6 +82,7 @@ class Network extends Entities\DenormalizedEntity implements BoostEntityInterfac
         $this->priorityRate = (float)$array['priorityRate'];
         $this->categories = $array['categories'];
         $this->rejection_reason = $array['rejection_reason'];
+        $this->checksum = $array['checksum'];
         return $this;
     }
 
@@ -111,12 +114,26 @@ class Network extends Entities\DenormalizedEntity implements BoostEntityInterfac
             'rating' => $this->rating,
             'quality'=> $this->getQuality(),
             'categories' => $this->categories,
-            'rejection_reason'=> $this->getRejectionReason()
+            'rejection_reason'=> $this->getRejectionReason(),
+            'checksum' => $this->getChecksum(),
         ];
 
         /** @var Core\Boost\Repository $repository */
         $repository = Di::_()->get('Boost\Repository');
         $repository->upsert($this->handler, $data);
+        return $this;
+    }
+
+    /**
+     * Set the GUID of this boost
+     * @return $this
+     */
+    public function setGuid($guid)
+    {
+        if (!$this->guid) {
+            $this->guid = $guid;
+            $this->time_created = time();
+        }
         return $this;
     }
 
@@ -191,6 +208,15 @@ class Network extends Entities\DenormalizedEntity implements BoostEntityInterfac
     public function getOwner()
     {
         return $this->owner;
+    }
+
+    /**
+     * Get the time created
+     * @return int
+     */
+    public function getTimeCreated()
+    {
+        return $this->time_created ?: time();
     }
 
     /**
@@ -388,6 +414,26 @@ class Network extends Entities\DenormalizedEntity implements BoostEntityInterfac
     }
 
     /**
+     * @param string $checksum
+     * @return $this
+     */
+    public function setChecksum($checksum)
+    {
+        $this->checksum = $checksum;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getChecksum()
+    {
+        return $this->checksum;
+    }
+
+
+
+    /**
      * Exports the boost onto an array
      * @param array $keys
      * @return array
@@ -398,6 +444,8 @@ class Network extends Entities\DenormalizedEntity implements BoostEntityInterfac
         $export = parent::export();
         $export = array_merge($export, \Minds\Core\Events\Dispatcher::trigger('export:extender', 'all', array('entity' => $this), array()));
         $export = \Minds\Helpers\Export::sanitize($export);
+
+        $export['met_impressions'] = Counters::get((string) $this->getId(), "boost_impressions");
         return $export;
     }
 }

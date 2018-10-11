@@ -23,31 +23,13 @@ class Video extends Object
         $this->attributes['super_subtype'] = 'archive';
         $this->attributes['subtype'] = "video";
         $this->attributes['boost_rejection_reason'] = -1;
+        $this->attributes['rating'] = 2;
     }
 
 
     public function __construct($guid = null)
     {
         parent::__construct($guid);
-    }
-
-    public function cinemr()
-    {
-        return new cinemr\sdk\client(array(
-                'account_guid' => '335988155444367360',
-                            'secret' => '+/rW1ArsueEjXK++0zkxlBrbLkb5suHqvqZJ64kX8rk=',
-                'uri' => 'http://cinemr.minds.com'
-            ));
-    }
-
-    /**
-     * Get the status of the video
-     */
-    public function getStatus()
-    {
-        $cinemr = $this->cinemr();
-        $data = $cinemr::factory('media')->get($this->cinemr_guid);
-        return $data['status'];
     }
 
     /**
@@ -70,8 +52,8 @@ class Video extends Object
     {
         $this->generateGuid();
 
-        $aws = ServiceFactory::build('AWS');
-        $aws->setKey($this->getGuid())
+        $transcoder = ServiceFactory::build('FFMpeg');
+        $transcoder->setKey($this->getGuid())
           ->saveToFilestore($filepath)
           ->transcode();
 
@@ -82,16 +64,24 @@ class Video extends Object
     {
         $domain = elgg_get_site_url();
         global $CONFIG;
-        if (isset($CONFIG->cdn_url)) {
+        if (isset($CONFIG->cdn_url) && !$this->getFlag('paywall') && !$this->getWireThreshold()) {
             $domain = $CONFIG->cdn_url;
         }
 
-        return $domain . 'api/v1/media/thumbnails/'.$this->guid;
+        return $domain . 'api/v1/media/thumbnails/' . $this->guid . '/' . $this->time_updated;
     }
 
     public function getURL()
     {
         return elgg_get_site_url() . 'media/'.$this->guid;
+    }
+
+    protected function getIndexKeys($ia = false)
+    {
+        $indexes = [
+            "object:video:network:$this->owner_guid"
+        ];
+        return array_merge(parent::getIndexKeys($ia), $indexes);
     }
 
     /**
@@ -102,14 +92,6 @@ class Video extends Object
     {
         $this->super_subtype = 'archive';
         parent::save((!$this->guid || $force));
-
-        $cinemr = $this->cinemr();
-        $cinemr::factory('media')->post($this->cinemr_guid, array(
-                'title' => $this->title,
-                'description' => $this->description,
-                'minds_guid' => $this->guid,
-                'minds_owner' => $this->owner_guid
-            ));
         return $this->guid;
     }
 
@@ -119,9 +101,6 @@ class Video extends Object
     public function delete()
     {
         $result = parent::delete();
-
-        $cinemr = $this->cinemr();
-        $cinemr::factory('media')->delete($this->cinemr_guid);
 
         return $result;
     }
@@ -164,6 +143,7 @@ class Video extends Object
         $export['thumbs:up:count'] = Helpers\Counters::get($this->guid, 'thumbs:up');
         $export['thumbs:down:count'] = Helpers\Counters::get($this->guid, 'thumbs:down');
         $export['description'] = (new Core\Security\XSS())->clean($this->description); //videos need to be able to export html.. sanitize soon!
+        $export['rating'] = $this->getRating();
 
         if (!Helpers\Flags::shouldDiscloseStatus($this) && isset($export['flags']['spam'])) {
             unset($export['flags']['spam']);
@@ -204,7 +184,8 @@ class Video extends Object
             'boost_rejection_reason' => null,
             'hidden' => null,
             'access_id' => null,
-            'container_guid' => null
+            'container_guid' => null,
+            'rating' => 2, //open by default
         ], $data);
 
         $allowed = [
@@ -215,7 +196,8 @@ class Video extends Object
             'access_id',
             'container_guid',
             'mature',
-            'boost_rejection_reason'
+            'boost_rejection_reason',
+            'rating',
         ];
 
         foreach ($allowed as $field) {

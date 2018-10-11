@@ -97,6 +97,7 @@ class boosts implements Interfaces\Api, Interfaces\ApiAdminPam
         $event->setType('action')
             ->setProduct('boost')
             ->setUserGuid(Core\Session::getLoggedInUser()->guid)
+            ->setUserPhoneNumberHash(Core\Session::getLoggedInUser()->getPhoneNumberHash())
             ->setEntityGuid((string) $boost->getGuid())
             ->setEntityType('boost')
             ->setEntityOwnerGuid($boost->getOwner()->getGuid())
@@ -173,8 +174,8 @@ class boosts implements Interfaces\Api, Interfaces\ApiAdminPam
         }
 
         // Custom Data
-        if (method_exists($entity, 'setCustom') && $report['object']['custom_data'] && is_array($report['object']['custom_data'])) {
-            $custom_data = $report['object']['custom_data'];
+        if (method_exists($entity, 'setCustom') && $entity->custom_data && is_array($entity->custom_data)) {
+            $custom_data = $entity->custom_data;
 
             if (isset($custom_data[0])) {
                 $custom_data[0]['mature'] = true;
@@ -182,7 +183,7 @@ class boosts implements Interfaces\Api, Interfaces\ApiAdminPam
                 $custom_data['mature'] = true;
             }
 
-            $entity->setCustom($report['object']['custom_type'], $custom_data);
+            $entity->setCustom($entity->custom_type, $custom_data);
             $dirty = true;
         }
 

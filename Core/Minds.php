@@ -1,6 +1,8 @@
 <?php
 namespace Minds\Core;
 
+use Minds\Core\Di\Di;
+
 /**
  * Core Minds Engine
  */
@@ -25,6 +27,10 @@ class Minds extends base
      */
     public function initProviders()
     {
+        Di::_()->bind('Guid', function ($di) {
+            return new GuidBuilder();
+        }, ['useFactory' => true]);
+
         (new \Minds\Entities\EntitiesProvider())->register();
         (new Config\ConfigProvider())->register();
         (new Boost\BoostProvider())->register();
@@ -55,6 +61,12 @@ class Minds extends base
         (new Votes\VotesProvider())->register();
         (new Features\FeaturesProvider())->register();
         (new SMS\SMSProvider())->register();
+        (new Blockchain\BlockchainProvider())->register();
+        (new Payments\Subscriptions\SubscriptionsProvider())->register();
+        (new Faq\FaqProvider())->register();
+        (new Rewards\RewardsProvider())->register();
+        (new Email\EmailProvider())->register();
+        (new Plus\PlusProvider())->register();
     }
 
     /**

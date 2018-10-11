@@ -10,6 +10,7 @@ namespace Minds\Controllers\api\v1;
 
 use Minds\Api\Factory;
 use Minds\Core;
+use Minds\Core\Di\Di;
 use Minds\Core\Security;
 use Minds\Entities;
 use Minds\Interfaces;
@@ -96,7 +97,7 @@ class twofactor implements Interfaces\Api
                 } else {
                     header('HTTP/1.1 401 Unauthorized', true, 401);
                     $response['status'] = 'error';
-                    $response['message'] = 'Invalid token';
+                    $response['message'] = 'LoginException::InvalidToken';
                 }
 
                 if ($twofactor->verifyCode($secret, $_POST['code'], 1)) {
@@ -109,8 +110,23 @@ class twofactor implements Interfaces\Api
                 } else {
                     header('HTTP/1.1 401 Unauthorized', true, 401);
                     $response['status'] = 'error';
-                    $response['message'] = 'Could not verify.';
+                    $response['message'] = 'LoginException::CodeVerificationFailed';
                 }
+                break;
+            case "remove":
+                $validator = Di::_()->get('Security\Password');
+            
+                if (!$validator->check(Core\Session::getLoggedinUser(), $_POST['password'])) {
+                    return Factory::response([
+                        'status' => 'error',
+                        'message' => 'Password incorrect'
+                    ]);
+                }
+        
+                $user = Core\Session::getLoggedInUser();
+                $user->twofactor = false;
+                $user->telno = false;
+                $user->save();
                 break;
         }
 
@@ -123,10 +139,5 @@ class twofactor implements Interfaces\Api
 
     public function delete($pages)
     {
-        $user = Core\Session::getLoggedInUser();
-        $user->twofactor = false;
-        $user->telno = false;
-        $user->save();
-        return Factory::response([]);
     }
 }

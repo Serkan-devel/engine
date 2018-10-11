@@ -30,7 +30,7 @@ class EntityMapping implements MappingInterface
         'blurb' => [ 'type' => 'text', '$exportField' => 'blurb' ],
         'description' => [ 'type' => 'text', '$exportField' => 'description' ],
         'tags' => [ 'type' => 'text' ],
-        'paywall' => [ 'type' => 'boolean', '$exportField' => 'paywall' ]
+        'paywall' => [ 'type' => 'boolean', '$exportField' => 'paywall' ],
     ];
 
     /** @var mixed $entity */
@@ -141,8 +141,8 @@ class EntityMapping implements MappingInterface
 
         $paywall = isset($map['paywall']) && $map['paywall'];
 
-        if (method_exists($this->entity, 'getPaywall')) {
-            $paywall = !!$this->entity->getPaywall();
+        if (method_exists($this->entity, 'isPaywall')) {
+            $paywall = !!$this->entity->isPaywall();
         } elseif (method_exists($this->entity, 'getFlag')) {
             $paywall = !!$this->entity->getFlag('paywall');
         }
@@ -159,15 +159,15 @@ class EntityMapping implements MappingInterface
 
         $fullText = '';
 
-        foreach ($map as $key => $value) {
-            if (!is_string($value) || is_numeric($value)) {
-                continue;
-            }
-
-            $fullText .= ' ' . $value;
+        if (isset($map['title'])) {
+            $fullText .= ' ' . $map['title'];
         }
 
-        $htRe = '/(^|\s)#(\w*[a-zA-Z_]+\w*)/';
+        if (isset($map['message'])) {
+            $fullText .= ' ' . $map['message'];
+        }
+
+        $htRe = '/(^|\s||)#(\w*[a-zA-Z_]+\w*)/';
         $matches = [];
 
         preg_match_all($htRe, $fullText, $matches);

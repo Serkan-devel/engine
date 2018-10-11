@@ -77,8 +77,8 @@ class Events
             Dispatcher::trigger('notification', 'thumbs', [
                 'to' => [ $entity->owner_guid ],
                 'notification_view' => $direction == 'up' ? 'like' : 'downvote',
-                'title' => $entity->title,
-                'entity' => $entity
+                'entity' => $entity,
+                'params' => ['title' => $entity->title ?: $entity->message]
             ]);
         });
 
@@ -92,11 +92,16 @@ class Events
             $entity = $vote->getEntity();
             $actor = $vote->getActor();
 
+            $container_guid = $entity->type === 'comment' ? $entity->parent->container_guid : $entity->container_guid;
+
             $event = new Core\Analytics\Metrics\Event();
             $event->setType('action')
                 ->setProduct('platform')
                 ->setUserGuid((string) $actor->guid)
+                ->setUserPhoneNumberHash($actor->getPhoneNumberHash())
                 ->setEntityGuid((string) $entity->guid)
+                ->setEntityContainerGuid((string) $container_guid)
+                ->setEntityAccessId($entity->access_id)
                 ->setEntityType($entity->type)
                 ->setEntitySubtype((string) $entity->subtype)
                 ->setEntityOwnerGuid((string) $entity->owner_guid)
@@ -120,7 +125,10 @@ class Events
                 $event->setType('action')
                     ->setProduct('platform')
                     ->setUserGuid((string) $actor->guid)
+                    ->setUserPhoneNumberHash($actor->getPhoneNumberHash())
                     ->setEntityGuid($guid)
+                    ->setEntityContainerGuid((string) $container_guid)
+                    ->setEntityAccessId($entity->access_id)
                     ->setEntityType('object')
                     ->setEntitySubtype($subtype)
                     ->setEntityOwnerGuid((string) $entity->owner_guid)
@@ -137,11 +145,16 @@ class Events
             $entity = $vote->getEntity();
             $actor = $vote->getActor();
 
+            $container_guid = $entity->type === 'comment' ? $entity->parent->container_guid : $entity->container_guid;
+
             $event = new Core\Analytics\Metrics\Event();
             $event->setType('action')
                 ->setProduct('platform')
                 ->setUserGuid((string) $actor->guid)
+                ->setUserPhoneNumberHash($actor->getPhoneNumberHash())
                 ->setEntityGuid((string) $entity->guid)
+                ->setEntityContainerGuid((string) $container_guid)
+                ->setEntityAccessId($entity->access_id)
                 ->setEntityType($entity->type)
                 ->setEntitySubtype((string) $entity->subtype)
                 ->setEntityOwnerGuid((string) $entity->owner_guid)

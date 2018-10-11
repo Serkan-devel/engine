@@ -16,6 +16,7 @@ class Image extends File
         $this->attributes['super_subtype'] = 'archive';
         $this->attributes['subtype'] = "image";
         $this->attributes['boost_rejection_reason'] = -1;
+        $this->attributes['rating'] = 2;
         $this->attributes['width'] = 0;
         $this->attributes['height'] = 0;
     }
@@ -32,7 +33,7 @@ class Image extends File
             $size = '';
         }
 
-        if (isset($CONFIG->cdn_url)) {
+        if (isset($CONFIG->cdn_url) && !$this->getFlag('paywall') && !$this->getWireThreshold()) {
             $base_url = $CONFIG->cdn_url;
         } else {
             $base_url = \elgg_get_site_url();
@@ -43,6 +44,14 @@ class Image extends File
         }
 
         return $base_url. 'api/v1/media/thumbnails/' . $this->guid . '/'.$size;
+    }
+
+    protected function getIndexKeys($ia = false)
+    {
+        $indexes = [
+            "object:image:network:$this->owner_guid"
+        ];
+        return array_merge(parent::getIndexKeys($ia), $indexes);
     }
 
     /**
@@ -161,8 +170,10 @@ class Image extends File
             'license',
             'mature',
             'boost_rejection_reason',
+            'rating',
             'width',
             'height',
+            'gif',
         ));
     }
 
@@ -188,8 +199,10 @@ class Image extends File
         $export['thumbs:down:count'] = Helpers\Counters::get($this->guid, 'thumbs:down');
         $export['description'] = $this->description; //videos need to be able to export html.. sanitize soon!
         $export['mature'] = $this->mature ?: $this->getFlag('mature');
+        $export['rating'] = $this->getRating();
         $export['width'] = $this->width ?: 0;
         $export['height'] = $this->height ?: 0;
+        $export['gif'] = (bool) $this->gif;
 
         if (!Helpers\Flags::shouldDiscloseStatus($this) && isset($export['flags']['spam'])) {
             unset($export['flags']['spam']);
@@ -231,7 +244,8 @@ class Image extends File
             'hidden' => null,
             'batch_guid' => null,
             'access_id' => null,
-            'container_guid' => null
+            'container_guid' => null,
+            'rating' => 2, //open by default
         ], $data);
 
         $allowed = [
@@ -243,7 +257,8 @@ class Image extends File
             'access_id',
             'container_guid',
             'mature',
-            'boost_rejection_reason'
+            'boost_rejection_reason',
+            'rating',
         ];
 
         foreach ($allowed as $field) {

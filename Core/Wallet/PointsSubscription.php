@@ -9,6 +9,8 @@ use Minds\Core\Payments;
 use Minds\Core\Payments\HookInterface;
 use Minds\Helpers\Wallet as WalletHelper;
 use Minds\Entities;
+use Minds\Core\Blockchain\Transactions\Transaction;
+use Minds\Core\Di\Di;
 
 class PointsSubscription implements HookInterface
 {
@@ -26,7 +28,19 @@ class PointsSubscription implements HookInterface
         error_log("[webhook]:: got onCharge");*/
 
         if ($subscription->getPlanId() == 'points') {
-            WalletHelper::createTransaction($subscription->getCustomer()->getUser()->guid, ($subscription->getPrice() * 1000) * 1.1, null, "Purchase (Recurring)");
+            $user = $subscription->getCustomer()->getUser();
+            $transaction = new Transaction(); 
+            $transaction
+                ->setUserGuid($user->guid)
+                ->setWalletAddress('offchain')
+                ->setTimestamp(time())
+                ->setTx('cc:' . $subscription->getId())
+                ->setAmount(($subscription->getPrice()) * 1.1 * 10 ** 18)
+                ->setContract('offchain:points')
+                ->setCompleted(true);
+
+            Di::_()->get('Blockchain\Transactions\Repository')
+                ->add($transaction);
         }
     }
 

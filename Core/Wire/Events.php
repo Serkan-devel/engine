@@ -7,11 +7,13 @@
 namespace Minds\Core\Wire;
 
 use Minds\Core;
+use Minds\Core\Di\Di;
 use Minds\Core\Session;
 use Minds\Core\Events\Dispatcher;
+use Minds\Core\Util\BigNumber;
+use Minds\Core\Wire\Exceptions\WalletNotSetupException;
 use Minds\Entities;
 use Minds\Entities\User;
-use Minds\Helpers;
 
 class Events
 {
@@ -24,6 +26,7 @@ class Events
                 return;
             }
 
+            /** @var Manager $manager */
             $manager = Core\Di\Di::_()->get('Wire\Manager');
 
             $wires = $manager->get(['user_guid' => $user->guid, 'type' => 'sent', 'order' => 'DESC']);
@@ -62,24 +65,75 @@ class Events
                 return $event->setResponse($export);
             }
         });
+
+        // Recurring subscriptions
+
+        Dispatcher::register('subscriptions:process', 'wire', function (Core\Events\Event $event) {
+            $params = $event->getParameters();
+            /** @var Core\Payments\Subscriptions\Subscription $subscription */
+            $subscription = $params['subscription'];
+
+            $manager = Di::_()->get('Wire\Manager');
+            $result = $manager->onRecurring($subscription);
+
+            return $event->setResponse($result);
+        });
+
+        Dispatcher::register('wire:email', 'wire', function (Core\Events\Event $event) {
+            $params = $event->getParameters();
+            /** @var User $receiver */
+            $receiver = $params['receiver'];
+
+            $method = $params['method'];
+
+            /** @var Core\Email\Manager $manager */
+            $manager = Di::_()->get('Email\Manager');
+
+            $subscription = new Core\Email\EmailSubscription();
+            $subscription
+                ->setUserGuid($receiver->guid)
+                ->setCampaign('when')
+                ->setTopic('wire_received')
+                ->setValue(true);
+
+
+            if ($manager->isSubscribed($subscription)) {
+                $campaign = new Core\Email\Campaigns\WhenWire();
+                $campaign->setUser($receiver)
+                    ->setMethod($method)
+                    ->send();
+            }
+
+            return $event->setResponse(true);
+        });
     }
+
 
     private function cancelSubscriptions(User $user)
     {
-        $repo = new Core\Payments\Plans\Repository();
-        $repo->setUserGuid($user->guid);
-        $subscriptions = $repo->getAllSubscriptions(['wire'], ['limit' => 0]);
-        foreach ($subscriptions as $subscription) {
-            $repo->setEntityGuid($subscription[0]);
-            $plan = $repo->getSubscription('wire');
+        /** @var Core\Payments\Subscriptions\Repository $repository */
+        $repository = Di::_()->get('Payments\Subscriptions\Repository');
+        /** @var Core\Payments\Subscriptions\Manager $manager */
+        $manager = Di::_()->get('Payments\Subscriptions\Manager');
 
-            $subscription = new Core\Payments\Subscriptions\Subscription()< $subscription->setId($plan->getSubscriptionId())
-                ->setMerchant($user);
+        $subscriptions = $repository->getList([
+            'user_guid' => $user->guid,
+            'plan_id' => 'wire'
+        ]);
+
+        foreach ($subscriptions as $subscription) {
+            if (!$subscription->getId()) {
+                continue;
+            }
+
+            $subscription->setMerchant($user);
+
             $stripe = Core\Di\Di::_()->get('StripePayments');
             $stripe->cancelSubscription($subscription);
 
             //cancel the plan itself
-            $repo->cancel('wire');
+            $manager->setSubscription($subscription);
+            $manager->cancel();
         }
     }
 }

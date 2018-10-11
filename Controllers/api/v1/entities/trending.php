@@ -13,7 +13,7 @@ use Minds\Entities;
 use Minds\Interfaces;
 use Minds\Api\Factory;
 
-class trending implements Interfaces\Api
+class trending implements Interfaces\Api, Interfaces\ApiIgnorePam
 {
     /**
      * Returns the entities
@@ -84,7 +84,7 @@ class trending implements Interfaces\Api
                 break;
             case "group":
             case "groups":
-                $key = "group";
+                $key = "groups";
                 break;
             case "activity":
             case "activities":
@@ -106,7 +106,12 @@ class trending implements Interfaces\Api
 
         $limit = isset($_GET['limit']) && $_GET['limit'] < 50 ? $_GET['limit'] : 12;
 
-        $result = Di::_()->get('Trending\Repository')->getList(['type' => $key, 'limit' => $limit, 'offset' => $offset]);
+        $result = Di::_()->get('Trending\Repository')->getList([
+            'type' => $key,
+            'rating' => isset($_GET['rating']) ? (int) $_GET['rating'] : 1,
+            'limit' => $limit,
+            'offset' => $offset
+        ]);
 
         if (!$result) {
             return Factory::response([

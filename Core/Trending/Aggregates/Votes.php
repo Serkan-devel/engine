@@ -9,7 +9,7 @@ use Minds\Core\Data\ElasticSearch;
 class Votes extends Aggregate
 {
 
-    protected $multiplier = 2;
+    protected $multiplier = 1;
 
     public function get()
     {
@@ -29,8 +29,8 @@ class Votes extends Aggregate
                 ]
             ]
         ];
-
-        if ($this->type) {
+        
+        if ($this->type && $this->type != 'group') {
             $must[]['match'] = [
                 'entity_type' => $this->type
             ];
@@ -41,11 +41,29 @@ class Votes extends Aggregate
                 'entity_subtype' => $this->subtype
             ];
         }
+        
+        $field = 'entity_guid';
+        $cardinality_field = 'user_phone_number_hash';
+
+        if ($this->type == 'group') {
+            $field = 'entity_container_guid';
+            $this->multiplier = 4;
+            $must[]['range'] = [
+                'entity_access_id' => [
+                  'gte' => 3, //would be group
+                  'lt' => null,
+                ]
+            ];
+        }
+
+        //$must[]['match'] = [
+        //    'rating' => $this->rating
+        //];
 
         $query = [
             'index' => 'minds-metrics-*',
             'type' => 'action',
-            'size' => 1, //we want just the aggregates
+            'size' => 0, //we want just the aggregates
             'body' => [
                 'query' => [
                     'bool' => [
@@ -56,8 +74,16 @@ class Votes extends Aggregate
                 'aggs' => [
                     'entities' => [
                         'terms' => [ 
-                            'field' => 'entity_guid.keyword',
-                            'size' => $this->limit 
+                            'field' => "$field.keyword",
+                            'size' => $this->limit,
+                            'order' => [ 'uniques' => 'DESC' ],
+                        ],
+                        'aggs' => [
+                            'uniques' => [
+                                'cardinality' => [
+                                    'field' => "$cardinality_field.keyword"
+                                ]
+                            ]
                         ]
                     ]
                 ]
@@ -71,7 +97,7 @@ class Votes extends Aggregate
 
         $entities = [];
         foreach ($result['aggregations']['entities']['buckets'] as $entity) {
-            $entities[$entity['key']] = $entity['doc_count'] * $this->multiplier;
+            $entities[$entity['key']] = $entity['uniques']['value'] * $this->multiplier;
         }
         return $entities;
     }

@@ -25,7 +25,9 @@ class Peer implements BoostEntityInterface
     private $_type = 'pro';
     private $scheduledTs;
     private $postToFacebook = false;
+    private $checksum = null;
     private $handler = 'peer';
+    private $method = '';
 
     public function __construct($db = null)
     {
@@ -63,6 +65,8 @@ class Peer implements BoostEntityInterface
       $this->transactionId = $array['transactionId'];
       $this->scheduledTs = isset($array['scheduledTs']) ? $array['scheduledTs'] : null;
       $this->postToFacebook = isset($array['postToFacebook']) ? $array['postToFacebook'] : false;
+      $this->checksum = isset($array['checksum']) ? $array['checksum'] : null;
+      $this->method = isset($array['method']) ? $array['method'] : '';
       return $this;
   }
 
@@ -89,13 +93,27 @@ class Peer implements BoostEntityInterface
         'last_updated' => time(),
         'transactionId' => $this->transactionId,
         'scheduledTs' => $this->scheduledTs ?: time(),
-        'postToFacebook' => $this->postToFacebook
+        'postToFacebook' => $this->postToFacebook,
+        'checksum' => $this->checksum,
+        'method' => $this->method,
       ];
 
       /** @var Core\Boost\Repository $repository */
       $repository = Di::_()->get('Boost\Repository');
       $repository->upsert('peer', $data);
       return $this;
+  }
+
+  /**
+   * Sets the GUID of this boost
+   * @return $this
+   */
+  public function setGuid($guid)
+  {
+      if (!$this->guid) {
+          $this->guid = $guid;
+          $this->time_created = time();
+      }
   }
 
   /**
@@ -144,7 +162,7 @@ class Peer implements BoostEntityInterface
 
   /**
    * Get the destination
-   * @return Entity
+   * @return User
    */
   public function getDestination()
   {
@@ -169,6 +187,15 @@ class Peer implements BoostEntityInterface
   public function getOwner()
   {
       return $this->owner;
+  }
+
+  /**
+   * Get the time created
+   * @return int
+   */
+    public function getTimeCreated()
+  {
+      return $this->time_created ?: time();
   }
 
   /**
@@ -241,6 +268,32 @@ class Peer implements BoostEntityInterface
     }
 
     /**
+     * Return the boost currency
+     * @return string
+     */
+    public function getMethod()
+    {
+        if (!$this->method && $this->_type == 'pro') {
+            return 'money';
+        }
+
+        if ($this->time_created < strtotime('19th March 2018') && !$this->method) {
+            return $this->method = 'points';
+        }
+
+        return $this->method;
+    }
+
+    /**
+     * Set the boost currency
+     */
+    public function setMethod($method)
+    {
+        $this->method = $method;
+        return $this;
+    }
+
+    /**
      * Get the schedule timestamp
      * @return int
      */
@@ -290,6 +343,24 @@ class Peer implements BoostEntityInterface
     }
 
     /**
+     * @param string $checksum
+     * @return $this
+     */
+    public function setChecksum($checksum)
+    {
+        $this->checksum = $checksum;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getChecksum()
+    {
+        return $this->checksum;
+    }
+
+    /**
      * Exports the boost onto an array
      * @return array
      */
@@ -308,7 +379,9 @@ class Peer implements BoostEntityInterface
           'last_updated' => $this->last_updated,
           'type' => $this->_type,
           'scheduledTs' => $this->scheduledTs,
-          'postToFacebook' => $this->postToFacebook
+          'postToFacebook' => $this->postToFacebook,
+          'checksum' => $this->checksum,
+          'method' => $this->method,
         ];
         $export = array_merge($export, \Minds\Core\Events\Dispatcher::trigger('export:extender', 'all', array('entity'=>$this), array()));
         $export = \Minds\Helpers\Export::sanitize($export);

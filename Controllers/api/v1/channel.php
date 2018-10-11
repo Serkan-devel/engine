@@ -200,6 +200,7 @@ class channel implements Interfaces\Api
                 if (!$owner->canEdit()) {
                     return Factory::response(array('status'=>'error'));
                 }
+
                 $update = array();
                 foreach (['name', 'website', 'briefdescription', 'gender',
                   'dob', 'city', 'coordinates', 'monetized'] as $field) {
@@ -209,20 +210,14 @@ class channel implements Interfaces\Api
                     }
                 }
 
+                /*try {
+                    $spam = new Core\Security\Spam();
+                    $spam->check($owner);
+                } catch (\Exception $e) {
+                    return Factory::response(['status'=>'error', 'message' => $e->getMessage() ]);
+                }*/
+
                 if (isset($_POST['social_profiles']) && is_array($_POST['social_profiles'])) {
-                    $allowedKeys = [
-                        'facebook',
-                        'github',
-                        'linkedin',
-                        'minds',
-                        'reddit',
-                        'soundcloud',
-                        'tumblr',
-                        'twitter',
-                        'youtube_channel',
-                        'youtube_user',
-                        'instagram',
-                    ];
                     $profiles = [];
 
                     foreach ($_POST['social_profiles'] as $profile) {
@@ -233,7 +228,7 @@ class channel implements Interfaces\Api
                         $key = $profile['key'];
                         $value = $profile['value'];
 
-                        if (!in_array($key, $allowedKeys) || !$value || !is_string($value)) {
+                        if (!$value || !is_string($value)) {
                             continue;
                         }
 
@@ -273,20 +268,30 @@ class channel implements Interfaces\Api
     public function delete($pages)
     {
         if (!Core\Session::getLoggedinUser()) {
-            return Factory::response(array('status'=>'error', 'message'=>'not logged in'));
+            return Factory::response(array('status' => 'error', 'message' => 'not logged in'));
         }
 
         switch ($pages[0]) {
-          case "carousel":
-            $db = new Core\Data\Call('entities_by_time');
-          //  $db->removeAttributes("object:carousel:user:" . elgg_get_logged_in_user_guid());
-            $item = new \Minds\Entities\Object\Carousel($pages[1]);
-            $item->delete();
-            break;
-          default:
-            $channel = Core\Session::getLoggedinUser();
-            $channel->enabled = 'no';
-            $channel->save();
+            case "carousel":
+                $db = new Core\Data\Call('entities_by_time');
+                //  $db->removeAttributes("object:carousel:user:" . elgg_get_logged_in_user_guid());
+                $item = new \Minds\Entities\Object\Carousel($pages[1]);
+                $item->delete();
+                break;
+            default:
+                $channel = Core\Session::getLoggedinUser();
+                $channel->enabled = 'no';
+                $channel->save();
+
+                $customer = (new Core\Payments\Customer())
+                    ->setUser($channel);
+
+                $stripe = Core\Di\Di::_()->get('StripePayments');
+                $customer = $stripe->getCustomer($customer);
+                if ($customer) {
+                    $stripe->deleteCustomer($customer);
+                }
+                (new Core\Data\Sessions())->destroyAll($channel->guid);
         }
 
         return Factory::response(array());

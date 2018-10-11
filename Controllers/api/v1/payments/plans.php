@@ -52,7 +52,7 @@ class plans implements Interfaces\Api
                 ->setUserGuid(Core\Session::getLoggedInUser()->guid)
                 ->getSubscription('exclusive');
 
-              $isPlus = Core\Session::getLoggedInUser()->plus && $entity->owner_guid == '730071191229833224';
+              $isPlus = Core\Session::getLoggedInUser()->isPlus() && $entity->owner_guid == '730071191229833224';
 
               if ($plan->getStatus() == 'active' || Core\Session::isAdmin() || $isPlus) {
                   $response['subscribed'] = true;
@@ -199,6 +199,7 @@ class plans implements Interfaces\Api
                     ]);
                 }
 
+                /** @var Core\Wire\Manager $manager */
                 $manager = Core\Di\Di::_()->get('Wire\Manager');
                 $wires = $manager->get(['type' => 'sent', 'user_guid' => $user_guid, 'order' => 'DESC']);
 

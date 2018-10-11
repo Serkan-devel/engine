@@ -60,11 +60,12 @@ class forgotpassword implements Interfaces\Api, Interfaces\ApiIgnorePam
             ->setTemplate()
             ->setBody('forgotpassword.tpl')
             ->set('user', $user)
+            ->set('username', $user->username)
             ->set('link', $link);
           $message->setTo($user)
             ->setSubject("Password Reset")
             ->setHtml($template);
-          $mailer->queue($message);
+          $mailer->queue($message, true);
 
           break;
         case "reset":
@@ -81,7 +82,7 @@ class forgotpassword implements Interfaces\Api, Interfaces\ApiIgnorePam
               break;
           }
 
-          if ($user->password_reset_code && $user->password_reset_code != $_POST['code']) {
+          if ($user->password_reset_code && $user->password_reset_code !== $_POST['code']) {
               $response['status'] = "error";
               $response['message'] = "The reset code is invalid";
               break;
@@ -98,6 +99,8 @@ class forgotpassword implements Interfaces\Api, Interfaces\ApiIgnorePam
           $user->password_reset_code = "";
           $user->override_password = true;
           $user->save();
+
+          (new \Minds\Core\Data\Sessions())->destroyAll($user->guid);
 
           login($user);
 

@@ -11,6 +11,7 @@ use Minds\Api\Factory;
 use Minds\Core;
 use Minds\Core\Config;
 use Minds\Core\Di\Di;
+use Minds\Core\Queue\Client as Queue;
 use Minds\Entities;
 use Minds\Interfaces;
 
@@ -30,10 +31,11 @@ class settings implements Interfaces\Api
         Factory::isLoggedIn();
 
         if (Core\Session::getLoggedInUser()->isAdmin() && isset($pages[0])) {
-            $user = new entities\User($pages[0]);
+            $user = new Entities\User($pages[0]);
         } else {
             $user = Core\Session::getLoggedInUser();
         }
+
 
         $response = array();
 
@@ -42,6 +44,7 @@ class settings implements Interfaces\Api
         $response['channel']['boost_rating'] = $user->getBoostRating();
         $response['channel']['categories'] = $user->getCategories();
         $response['channel']['disabled_emails'] = $user->disabled_emails;
+        $response['channel']['open_sessions'] = (new Core\Data\Sessions())->count($user->guid) - 1;
 
         $response['thirdpartynetworks'] = Core\Di\Di::_()->get('ThirdPartyNetworks\Manager')->status();
 
@@ -73,7 +76,7 @@ class settings implements Interfaces\Api
         }
 
         if (isset($_POST['name']) && $_POST['name']) {
-            $user->name = $_POST['name'];
+            $user->name = trim($_POST['name']);
         }
 
         if (isset($_POST['email']) && $_POST['email']) {
@@ -84,8 +87,12 @@ class settings implements Interfaces\Api
             $user->setBoostRating((int) $_POST['boost_rating']);
         }
 
+        if (isset($_POST['boost_autorotate'])) {
+            $user->setBoostAutorotate((bool) $_POST['boost_autorotate']);
+        }
+
         if (isset($_POST['mature'])) {
-            $user->setMature(isset($_POST['mature']) && (int) $_POST['mature']);
+            $user->setViewMature(isset($_POST['mature']) && (int) $_POST['mature']);
         }
 
         if (isset($_POST['monetized']) && $_POST['monetized']) {
@@ -107,13 +114,25 @@ class settings implements Interfaces\Api
             } catch (Core\Security\Exceptions\PasswordRequiresHashUpgradeException $e) {
 
             }
+
+            try {
+                validate_password($_POST['new_password']);
+            } catch (\Exception $e) {
+                $response = array('status'=>'error', 'message'=>$e->getMessage());
+
+                return Factory::response($response);
+            }
+
             //need to create a new salt and hash...
             //$user->salt = Core\Security\Password::salt();
             $user->password = Core\Security\Password::generate($user, $_POST['new_password']);
             $user->override_password = true;
+
+            (new \Minds\Core\Data\Sessions())->destroyAll($user->guid);
+            \Minds\Core\Session::regenerate(true, $user);
         }
 
-        $allowedLanguages = ['en', 'es', 'fr'];
+        $allowedLanguages = ['en', 'es', 'fr', 'vi'];
 
         if (isset($_POST['language']) && in_array($_POST['language'], $allowedLanguages)) {
             $user->setLanguage($_POST['language']);
@@ -135,7 +154,7 @@ class settings implements Interfaces\Api
             $user->setCategories($newCategories);
         }
 
-        $response = array();
+        $response = [];
         if (!$user->save()) {
             //update or session
             if ($user->getGuid() == Core\Session::getLoggedInUser()->getGuid()) {

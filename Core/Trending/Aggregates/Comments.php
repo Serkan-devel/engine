@@ -14,6 +14,7 @@ class Comments extends Aggregate
     public function get()
     {
         $field = 'entity_guid';
+        $cardinality_field = 'user_phone_number_hash';
 
         $filter = [
             'term' => ['action' => 'comment']
@@ -30,7 +31,7 @@ class Comments extends Aggregate
             ]
         ];
 
-        if ($this->type) {
+        if ($this->type && $this->type != 'group') {
             $must[]['match'] = [
                 'entity_type' => $this->type
             ];
@@ -41,6 +42,20 @@ class Comments extends Aggregate
                 'entity_subtype' => $this->subtype
             ];
         }
+
+        if ($this->type == 'group') {
+            $must[]['range'] = [
+                'entity_access_id' => [
+                    'gt' => 2, //would be group
+                ]
+            ];
+            $field = 'entity_container_guid';
+            $this->multiplier = 4;
+        }
+
+        //$must[]['match'] = [
+        //    'rating' => $this->rating
+        //];
 
         $query = [
             'index' => 'minds-metrics-*',
@@ -56,9 +71,20 @@ class Comments extends Aggregate
                     'entities' => [
                         'terms' => [ 
                             'field' => "$field.keyword", 
-                            'size' => $this->limit
-                        ]
-                    ]
+                            'size' => $this->limit,
+                            'order' => [
+                                'uniques' => 'desc'
+                            ]
+                        ],
+                        'aggs' => [
+                            'uniques' => [
+                                'cardinality' => [
+                                    'field' => "$cardinality_field.keyword",
+                                    'precision_threshold' => 40000,
+                                ]
+                            ]
+                        ]          
+                    ]          
                 ]
             ]
         ];
@@ -70,7 +96,7 @@ class Comments extends Aggregate
 
         $entities = [];
         foreach ($result['aggregations']['entities']['buckets'] as $entity) {
-            $entities[$entity['key']] = $entity['doc_count'] * $this->multiplier;
+            $entities[$entity['key']] = $entity['uniques']['value'] * $this->multiplier;
         }
         return $entities;
     }

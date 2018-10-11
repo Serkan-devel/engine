@@ -48,8 +48,14 @@ class awssns implements Interfaces\Api, Interfaces\ApiIgnorePam
         if ($message['Type'] === 'SubscriptionConfirmation') {
             // Dump to the error log
             error_log('[AWS-SES] Subscribed to URL: ' . $message['SubscribeURL']);
+
             // Subscribe
-            file_get_contents($message['SubscribeURL']);
+            if (stripos($message['SubscribeURL'], 'https:') === 0) {
+                /** @var Core\Http\Curl\Client $http */
+                $http = Di::_()->get('Http');
+
+                $http->get($message['SubscribeURL']);
+            }
 
             return Factory::response([ ]);
         }
@@ -107,6 +113,9 @@ class awssns implements Interfaces\Api, Interfaces\ApiIgnorePam
             $user->disabled_emails = true;
             $user->bounced = true;
             $user->save();
+
+            Di::_()->get('Email\Manager')->unsubscribe($user);
+
             error_log('[AWS-SES] Disabled emails for ' . $guid);
             return Factory::response([]);
         }

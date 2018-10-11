@@ -1,6 +1,7 @@
 <?php
 namespace Minds\Core;
 
+use Minds\Core\I18n\I18n;
 use Minds\Helpers;
 use Minds\Controllers;
 
@@ -12,12 +13,7 @@ class Router
     // these are core pages, other pages are registered by plugins
     public static $routes = array(
       '/archive/thumbnail' => "Minds\\Controllers\\fs\\v1\\thumbnail",
-
-      '/api/v1/archive' => "Minds\\Controllers\\api\\v1\\media",
-      '/api/v1/archive/albums' => "Minds\\Controllers\\api\\v1\\media\\albums",
       '/api/v1/archive/thumbnails' => "Minds\\Controllers\\api\\v1\\media\\thumbnails",
-
-      '/api/v1/thumbs' => Controllers\api\v1\votes::class,
 
       '/icon' => "Minds\\Controllers\\icon",
       '//icon' => "Minds\\Controllers\\icon",
@@ -28,14 +24,10 @@ class Router
       '/not-supported' => "Minds\Controllers\\notSupported",
         //  "/app" => "minds\\pages\\app",
       '/emails/unsubscribe' => "Minds\\Controllers\\emails\\unsubscribe",
+      '/sitemap' => "Minds\\Controllers\\sitemap",
 
-      '/api/v1/gatherings' => "\\Minds\\Controllers\\api\\v1\\messenger\\conversations",
-      '/api/v1/conversations' => "\\Minds\\Controllers\\api\\v1\\messenger\\conversations",
-      '/api/v1/keys' => "Minds\\Controllers\\api\\v1\\messenger\\keys",
-
-      '/api/v2/conversations' => "\\Minds\\Controllers\\api\\v2\\messenger\\conversations",
-      '/api/v2/conversations/search' => "\\Minds\\Controllers\\api\\v2\\messenger\\search",
-      '/api/v2/keys' => "\\Minds\\Controllers\\api\\v2\\messenger\\keys",
+      '/apple-app-site-association' => '\\Minds\\Controllers\\deeplinks',
+      '/sitemaps' => '\\Minds\\Controllers\\sitemaps',
 
     );
 
@@ -44,7 +36,7 @@ class Router
      * (fallback to elgg page handler if we fail)
      * @param  string $uri
      * @param  string $method
-     * @return null
+     * @return null|mixed
      */
     public function route($uri = null, $method = null)
     {
@@ -58,6 +50,8 @@ class Router
 
         $this->detectContentType();
 
+        header('X-Frame-Options: DENY');
+
         $route = rtrim($uri, '/');
         $segments = explode('/', $route);
         $method = $method ? $method : strtolower($_SERVER['REQUEST_METHOD']);
@@ -70,10 +64,14 @@ class Router
             Helpers\Analytics::increment("active");
         }
 
-        if (isset($_GET['__e_ct_guid'])) {
-            Helpers\Analytics::increment("active", time(), $_GET['__e_ct_guid']);
-            Helpers\Analytics::increment("email:clicks", time(), $_GET['__e_ct_guid']);
+        if (isset($_GET['__e_ct_guid']) && is_numeric($_GET['__e_ct_guid'])) {
+            Helpers\Analytics::increment("active", $_GET['__e_ct_guid']);
+            Helpers\Analytics::increment("email:clicks", $_GET['__e_ct_guid']);
             Helpers\Campaigns\EmailRewards::reward($_GET['campaign'], $_GET['__e_ct_guid']);
+        }
+
+        if (isset($_GET['referrer'])) {
+            Helpers\Campaigns\Referrals::register($_GET['referrer']);
         }
 
         $loop = count($segments);
@@ -98,8 +96,10 @@ class Router
         }
 
         if (!$this->legacyRoute($uri)) {
-            include(dirname(dirname(dirname((__FILE__)))) . '/front/public/index.php');
+            (new I18n())->serveIndex();
         }
+
+        return null;
     }
 
     /**

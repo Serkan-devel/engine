@@ -22,6 +22,7 @@ class Object extends \ElggObject implements Flaggable
 
         $this->attributes['flags'] = [];
         $this->attributes['wire_threshold'] = 0;
+        $this->attributes['rating'] = 2;
     }
 
     /**
@@ -97,9 +98,9 @@ class Object extends \ElggObject implements Flaggable
             // @todo: migrate to Prepared\Timeline()
             $db = new Core\Data\Call('entities_by_time');
             $remove = [
-                "$this->type",
-                "$this->type:$this->subtype",
-                "$this->type:$this->super_subtype",
+                //"$this->type",
+                //"$this->type:$this->subtype",
+                //"$this->type:$this->super_subtype",
                 "$this->type:$this->super_subtype:user:$this->owner_guid",
                 "$this->type:$this->subtype:user:$this->owner_guid",
             ];
@@ -115,8 +116,6 @@ class Object extends \ElggObject implements Flaggable
      */
      public function getWireTotals() {
         $totals = [];
-        $totals['points'] = \Minds\Core\Wire\Counter::getSumByEntity($this->guid, 'points');
-        $totals['money'] = \Minds\Core\Wire\Counter::getSumByEntity($this->guid, 'money');
         // $totals['bitcoin'] = \Minds\Core\Wire\Counter::getSumByEntity($this->guid, 'bitcoin');
         return $totals;
     }

@@ -31,16 +31,45 @@ class Analytics
      * @param  mixed|null $user_guid - acting user. Null for current.
      * @return null
      */
-    public static function increment($metric = "active", $ts = null, $user_guid = null)
+    public static function increment($metric = "active", $user_guid = null)
     {
+        $phone_number_hash = null;
         if (!$user_guid) {
             $user_guid = Core\Session::getLoggedinUser()->guid;
+            $phone_number_hash = Core\Session::getLoggedInUser()->getPhoneNumberHash();
         }
-        $db = new Core\Data\Call('entities_by_time');
+
+        $platform = isset($_REQUEST['cb']) ? 'mobile' : 'browser';
+        if (isset($_REQUEST['platform'])) { //will be the sole method once mobile supports
+            $platform = $_REQUEST['platform'];
+        }
+
+        //skip if we've cached this hour
+        $ts = static::buildTS("hour", time());
+        $cacher = Core\Data\cache\factory::build('apcu');
+        if ($cacher->get("$platform:$metric:$ts:$user_guid") == true) {
+            return;
+        }
+        $cacher->set("$platform:$metric:$ts:$user_guid", true, 3600);
+
+        /*$db = new Core\Data\Call('entities_by_time');
         $ts = self::buildTS("day", $ts);
         $db->insert("analytics:$metric:day:$ts", [$user_guid => time()]);
         $ts = self::buildTS("month", $ts);
-        $db->insert("analytics:$metric:month:$ts", [$user_guid => time()]);
+        $db->insert("analytics:$metric:month:$ts", [$user_guid => time()]);*/
+        //HACK UNTIL THIS GETS REFACTORED!
+        $event = new Core\Analytics\Metrics\Event();
+        $event->setType('action')
+            ->setAction($metric)
+            ->setProduct('platform')
+            ->setUserGuid((string) $user_guid)
+            ->setPlatform($platform);
+
+        if ($phone_number_hash) {
+            $event->setUserPhoneNumberHash($phone_number_hash);
+        }
+
+        $event->push();
     }
 
     /**

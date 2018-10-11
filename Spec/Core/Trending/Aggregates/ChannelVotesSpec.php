@@ -25,8 +25,8 @@ class ChannelVotesSpec extends ObjectBehavior
                 'aggregations' => [
                     'entities' => [
                         'buckets' => [
-                            [ 'key' => 123, 'doc_count' => 50],
-                            [ 'key' => 456, 'doc_count' => 25]
+                            [ 'key' => 123, 'doc_count' => 50, 'uniques' => [ 'value' => 50 ] ],
+                            [ 'key' => 456, 'doc_count' => 25, 'uniques' => [ 'value' => 25 ] ]
                         ]
                     ]
                 ]

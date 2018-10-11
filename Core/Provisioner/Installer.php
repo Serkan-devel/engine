@@ -45,10 +45,10 @@ class Installer
         ];
 
         usleep(mt_rand(1, 9999));
-        $this->defaults['site-secret'] = md5(microtime() . mt_rand());
+        $this->defaults['site-secret'] = hash('sha512', openssl_random_pseudo_bytes(128));
 
         usleep(mt_rand(1, 9999));
-        $this->defaults['jwt-secret'] = md5(microtime() . mt_rand());
+        $this->defaults['jwt-secret'] = hash('sha512', openssl_random_pseudo_bytes(128));
     }
 
     public function setApp($app)
@@ -94,16 +94,28 @@ class Installer
             //throw new ProvisionException('Domain name is invalid');
         }
 
-        if (!isset($this->options['private-key']) || !$this->options['private-key']) {
-            throw new ProvisionException('Private key path was not provided');
-        } elseif (!is_readable($this->options['private-key'])) {
-            throw new ProvisionException('Private key is not readable');
+        if (!isset($this->options['email-private-key']) || !$this->options['email-private-key']) {
+            throw new ProvisionException('Email private key path was not provided');
+        } elseif (!is_readable($this->options['email-private-key'])) {
+            throw new ProvisionException('Email private key is not readable');
         }
 
-        if (!isset($this->options['public-key']) || !$this->options['public-key']) {
-            throw new ProvisionException('Public key path was not provided');
-        } elseif (!is_readable($this->options['public-key'])) {
-            throw new ProvisionException('Public key is not readable');
+        if (!isset($this->options['email-public-key']) || !$this->options['email-public-key']) {
+            throw new ProvisionException('Email public key path was not provided');
+        } elseif (!is_readable($this->options['email-public-key'])) {
+            throw new ProvisionException('Email public key is not readable');
+        }
+
+        if (!isset($this->options['phone-number-private-key']) || !$this->options['phone-number-private-key']) {
+            throw new ProvisionException('Phone number private key path was not provided');
+        } elseif (!is_readable($this->options['phone-number-private-key'])) {
+            throw new ProvisionException('Phone number private key is not readable');
+        }
+
+        if (!isset($this->options['email-public-key']) || !$this->options['email-public-key']) {
+            throw new ProvisionException('Phone number public key path was not provided');
+        } elseif (!is_readable($this->options['phone-number-public-key'])) {
+            throw new ProvisionException('Phone number public key is not readable');
         }
 
         if (isset($this->options['site-email']) && !filter_var($this->options['site-email'], FILTER_VALIDATE_EMAIL)) {
@@ -216,18 +228,17 @@ class Installer
 
     public function setupFirstAdmin()
     {
-        $guid = register_user(
+        $user = register_user(
             $this->options['username'],
             $this->options['password'],
             $this->options['username'],
             $this->options['email']
         );
 
-        if (!$guid) {
+        if (!$user) {
             throw new ProvisionException('Cannot create new User entity');
         }
 
-        $user = new User($guid);
         $user->admin = 'yes';
         $user->validated = true;
         $user->validated_method = 'admin_user';
@@ -240,7 +251,7 @@ class Installer
         Helpers\Wallet::createTransaction($user->guid, 750000000, $user->guid, 'Installed Minds');
 
         $activity = new Activity();
-        $activity->owner_guid = $guid;
+        $activity->owner_guid = $user->guid;
         $activity->setMessage('Hello Minds!');
         $activitySaved = $activity->save();
 

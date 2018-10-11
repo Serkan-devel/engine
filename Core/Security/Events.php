@@ -19,6 +19,7 @@ class Events
     public function register()
     {
         Dispatcher::register('create', 'elgg/event/object', [$this, 'onCreateHook']);
+        Dispatcher::register('create', 'elgg/event/activity', [$this, 'onCreateHook']);
         Dispatcher::register('update', 'elgg/event/object', [$this, 'onCreateHook']);
         Dispatcher::register('login', 'elgg/event/user', [$this, 'onLoginHook']);
     }
@@ -248,15 +249,75 @@ class Events
             'goo.gl',
             'getmooovie.com',
             'marketreportscenter.com',
-            'getsooft.com'
-        ];
+            'getsooft.com',
+            'myowndom.ru',
+            'print-mgn.ru',
+            'wiki-data.ru',
+            'velobog.ru',
+            'mobisony.ru',
+            'dzeroki.ru',
+            'slimkor.ru',
+            'kak-brosit-kyrit.ru',
+            'jinyurl.com',
+            'urlin.us',
+            'capillus.com',
+            'siteprofissional.com',
+            'mitersawjudge.com',
+            'mohajreen-jeeda.com',
+            'jobberies.com',
+            'bestfilms.site',
+            'baystudios.ch',
+            'elvenarhack.bid',
+            'essencephskincare.com',
+            'blog2learn.com',
+            'superrugbyonline.net',
+            'superrugby18.livejournal.com',
+            'expertairco.com',
+            'draesthetica.co.uk',
+            'sphere.social',
+            'saveabookmarks.xyz',
+            '/t.co',
+            'samuelsconstruction.build',
+            'pmwares.com',
+            'watchesofwales.co.uk',
+            //'.ru',
+            'zotero.org',
+            'speakerdeck.com',
+            'freesiteslike.com',
+            'pusha.se',
+            'vrootdownload.org',
+            'rubberwebshop.nl',
+            'restaurerlecorps.info',
+            'discretthemes.info',
+            'bride-forever.com',
+            'simplesmetamorphoses.info',
+            'mp3gain.com',
+            'mp4gain.com',
+            'ttlink.com',
+            'onepost.cf',
+            'getmefunds.com',
+            'vikinail.pl',
+            'typesofbeauty.info',
+            'joie6portia93.bloglove.cc',
+            'htgtea.com',
+            'tblogz.com',
+            'liveinternet.ru',
+            '.diowebhost.com',
+            '/yoursite.com',
+            'reworkedgames.eu',
+            'mp3gain.sourceforge.net',
+            'pages10.com',
+            ];
     }
 
     public function onCreateHook($hook, $type, $params, $return = null)
     {
         $object = $params;
-        if ($this->strposa($object->description, $this->prohibitedDomains()) || $this->strposa($object->briefdescription,
-                $this->prohibitedDomains())) {
+        if ($this->strposa($object->description, $this->prohibitedDomains()) || 
+            $this->strposa($object->briefdescription, $this->prohibitedDomains()) ||
+            $this->strposa($object->message, $this->prohibitedDomains()) ||
+            $this->strposa($object->title, $this->prohibitedDomains())
+        ) {
             throw new \Exception('Sorry, your post contains a reference to a domain name linked to spam. You can not use short urls (eg. bit.ly). Please remove it and try again');
             if (PHP_SAPI != 'cli') {
                 forward(REFERRER);
@@ -292,7 +353,8 @@ class Events
 
             // create a lookup of a random key. The user can then use this key along side their twofactor code
             // to login. This temporary code should be removed within 2 minutes.
-            $key = md5($user->username . $user->salt . time() . rand(0, 63));
+            $bytes = openssl_random_pseudo_bytes(128);
+            $key = hash('sha512', $user->username . $user->salt . $bytes);
 
             $lookup = new \Minds\Core\Data\lookup('twofactor');
             $lookup->set($key, array('_guid' => $user->guid, 'ts' => time(), 'secret' => $secret));

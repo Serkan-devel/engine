@@ -6,6 +6,7 @@ use Minds\Entities;
 use Minds\Entities\DenormalizedEntity;
 
 /**
+ * DEPRECATED
  * Report Entity (Entities reported by users)
  */
 class Wire extends NormalizedEntity
@@ -199,7 +200,7 @@ class Wire extends NormalizedEntity
     public function setTo($to)
     {
         if (!is_object($to)) {
-            $from = Entities\Factory::build($to);
+            $to = Entities\Factory::build($to);
         }
 
         $this->to = $to;

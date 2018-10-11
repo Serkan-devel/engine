@@ -31,6 +31,17 @@ class Image implements AssetsInterface
 
         list($width, $height) = getimagesize($media['file']);
 
+        if (exif_imagetype($media['file'])) {
+            $exif = @exif_read_data($media['file']);
+
+            if ($exif && isset($exif['Orientation'])) {
+                // check and invert
+                if (in_array($exif['Orientation'], [5, 6, 7, 8])) {
+                    list($height, $width) = [$width, $height];
+                }
+            }
+        }
+
         return [
             'filename' => $filename,
             'media' => $media,

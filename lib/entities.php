@@ -889,7 +889,7 @@ function elgg_get_entities(array $options = array()) {
                 }
             }
         } catch(Exception $e){
-            var_dump($e);
+            //var_dump($e);
             //@todo report error to admin
         }
         return $entities;
@@ -1730,10 +1730,6 @@ function entities_test($hook, $type, $value, $params) {
  * @access private
  */
 function entities_init() {
-    elgg_register_page_handler('view', 'entities_page_handler');
-
-    elgg_register_plugin_hook_handler('unit_test', 'system', 'entities_test');
-
     elgg_register_plugin_hook_handler('gc', 'system', 'entities_gc');
 }
 

@@ -24,8 +24,9 @@ class Export
                 } else {
                     $return[$k] = (string) $v;
                 }
-                $return[$k] = strip_tags(htmlspecialchars_decode($v, ENT_QUOTES));
-                $return[$k] = html_entity_decode($return[$k]);
+                $return[$k] = htmlspecialchars($return[$k], ENT_NOQUOTES);
+                $return[$k] = str_replace('&amp;', '&', $return[$k]);
+                $return[$k] = str_replace('&nbsp;', ' ', $return[$k]);
             } elseif (is_bool($v)) {
                 $return[$k] = $v;
             } elseif (is_object($v) || is_array($v)) {

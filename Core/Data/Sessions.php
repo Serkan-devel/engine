@@ -5,19 +5,27 @@
 
 namespace Minds\Core\Data;
 
+use Minds\Core\Data\cache\Redis;
+
 if (version_compare(phpversion(), '5.4.0', '<')) {
     require_once(__MINDS_ROOT__ . '/engine/classes/stub/SessionHandlerInterface.php');
 }
 
 class Sessions implements \SessionHandlerInterface
 {
+    /** @var Call */
     private $db;
+    /** @var Redis */
+    private $cacher;
+
+    private $cache;
 
     private $session;
 
-    public function __construct()
+    public function __construct($db = null, $cacher = null)
     {
-        $this->db = new Call('session');
+        $this->db = $db ?: new Call('session');
+        $this->cacher = $cacher ?: cache\factory::build();
     }
 
     public function open($save_path, $name)
@@ -33,13 +41,13 @@ class Sessions implements \SessionHandlerInterface
     public function read($session_id)
     {
         try {
-            $cacher = cache\factory::build();
-            if ($result = $cacher->get($session_id)) {
+            if ($result = $this->cacher->get($session_id)) {
                 $this->session = ['data' => $result];
                 return $result;
             }
 
             $result = $this->db->getRow($session_id);
+            $result['data'] = base64_decode($result['data']);
             $this->cache[$session_id] = $result;
             $this->session = $result;
 
@@ -47,7 +55,7 @@ class Sessions implements \SessionHandlerInterface
                 //load serialized owner entity & add to cache
                 return $result['data'];
             }
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return '';
         }
 
@@ -64,16 +72,18 @@ class Sessions implements \SessionHandlerInterface
                 return true; //no change detected
             }
 
-            $cacher = cache\factory::build();
-            $cacher->set($session_id, $session_data, $params['lifetime']);
+            $this->cacher->set($session_id, $session_data, $params['lifetime']);
 
-            $result = $this->db->insert($session_id, array('ts'=>$time,'data'=>$session_data), $params['lifetime']);
+            $result = $this->db->insert($session_id, [
+                'ts' => $time,
+                'data' => base64_encode($session_data)
+            ], $params['lifetime']);
             $this->addIndex($session_id, $params['lifetime']);
 
             if ($result !== false) {
                 return true;
             }
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             error_log('sessions write error: '.$e->getMessage());
         }
 
@@ -83,14 +93,13 @@ class Sessions implements \SessionHandlerInterface
     public function destroy($session_id)
     {
         try {
-            $cacher = cache\factory::build();
-            $cacher->destroy($session_id);
+            $this->cacher->destroy($session_id);
 
             $this->db->removeRow($session_id);
             $this->removeIndex($session_id);
 
             return true;
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             return false;
         }
     }
@@ -170,23 +179,34 @@ class Sessions implements \SessionHandlerInterface
             return true;
         }
 
-        $cacher = cache\factory::build();
-
         foreach ($result as $session_id => $ts) {
             $session_data = $this->db->getRow($session_id);
             //decode session_data to $_SESSION global
-            session_decode($session_data['data']);
+            session_decode(base64_decode($session_data['data']));
             //update the session
             $_SESSION['user'] = $user;
             $this->session = null;
             $this->write($session_id, session_encode());
-            $cacher->destroy($session_id);
+            $this->cacher->destroy($session_id);
         }
 
         //go back to real session
         $_SESSION = $current_session;
 
         return true;
+    }
+
+    /**
+     * Returns the amount of opened sessions from a user
+     * @param string $guid
+     * @return int
+     */
+    public function count($guid)
+    {
+        return $this->db->countRow('user:' . $guid, [
+            'limit' => 99999,
+            'reversed' => false
+        ]);
     }
 
     /**

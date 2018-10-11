@@ -204,7 +204,7 @@ abstract class ElggEntity extends ElggData implements
 		if($this->guid){
 	//		$this->save();
 		}
-		return TRUE;
+		return $this;
 	}
 
 	/**
@@ -1048,53 +1048,53 @@ abstract class ElggEntity extends ElggData implements
 	 * @throws IOException
 	 */
 	public function save($timebased = true) {
-		/*if(!$this->guid)
-			$this->guid = GUID::generate();*/
-		$new = true;
-        if($this->guid){
-            if (!$this->canEdit()) {
-                return false;
+
+            $new = true;
+            if($this->guid){
+                if (!$this->canEdit()) {
+                    return false;
+                }
+                $new = false;
+                $this->time_updated = time();
+                elgg_trigger_event('update', $this->type, $this);
+                //@todo review... memecache actually make us slower anyway.. do we need it?
+                if (is_memcache_available()) {
+                    $memcache = new ElggMemcache('new_entity_cache');
+                    $memcache->delete($this->guid);
+                }
+            } else {
+                $this->guid = Minds\Core\Guid::build();
+                elgg_trigger_event('create', $this->type, $this);
             }
-			$new = false;
-			elgg_trigger_event('update', $this->type, $this);
-			//@todo review... memecache actually make us slower anyway.. do we need it?
-			if (is_memcache_available()) {
-				$memcache = new ElggMemcache('new_entity_cache');
-				$memcache->delete($this->guid);
-			}
-		} else {
-			$this->guid = Minds\Core\Guid::build();
-			elgg_trigger_event('create', $this->type, $this);
-		}
 
-		$db = new Minds\Core\Data\Call('entities');
-		$result = $db->insert($this->guid, $this->toArray());
-		if($result && $timebased){
-			$db = new Minds\Core\Data\Call('entities_by_time');
-			$data =  array($result => $result);
+            $db = new Minds\Core\Data\Call('entities');
+            $result = $db->insert($this->guid, $this->toArray());
+            if ($result && $timebased) {
+                $db = new Minds\Core\Data\Call('entities_by_time');
+                $data =  array($result => $result);
 
-			foreach($this->getIndexKeys() as $index){
-				$db->insert($index, $data);
-			}
+                foreach ($this->getIndexKeys() as $index) {
+                    $db->insert($index, $data);
+                }
 
-			if(in_array($this->access_id, array(2, -2, 1))){
-					Minds\Core\Queue\Client::build()->setQueue("FeedDispatcher")
-							->send(array(
-									"guid" => $this->guid,
-									"owner_guid" => $this->owner_guid,
-									"type" => $this->type,
-									"subtype" => $this->subtype,
-									"super_subtype" => $this->super_subtype
-									));
-			}
+                if (in_array($this->access_id, array(2, -2, 1))) {
+                    Minds\Core\Queue\Client::build()->setQueue("FeedDispatcher")
+                        ->send(array(
+                            "guid" => $this->guid,
+                            "owner_guid" => $this->owner_guid,
+                            "type" => $this->type,
+                            "subtype" => $this->subtype,
+                            "super_subtype" => $this->super_subtype
+                        ));
+                 }
 
-			if(!$new && $this->access_id != ACCESS_PUBLIC){
-				$remove = array("$this->type", "$this->type:$this->subtype", "$this->type:$this->super_subtype");
+                 if(!$new && $this->access_id != ACCESS_PUBLIC){
+                     $remove = array("$this->type", "$this->type:$this->subtype", "$this->type:$this->super_subtype");
 			//	foreach($remove as $index)
 			//		$db->removeAttributes($index, array($this->guid), false);
-			}
-		}
-		return $this->guid;
+                 }
+            }
+            return $this->guid;
 	}
 
 	/**
@@ -1255,34 +1255,36 @@ abstract class ElggEntity extends ElggData implements
 	 * @param bool $ia - ignore access
 	 * @return array
 	 */
-	protected function getIndexKeys($ia = false){
-		//remove from the various lines
-		if($this->access_id == ACCESS_PUBLIC || $ia){
-			$indexes = array(
-				$this->type,
-				"$this->type:$this->subtype"
-			);
+    protected function getIndexKeys($ia = false)
+    {
+        //remove from the various lines
+        if ($this->access_id == ACCESS_PUBLIC || $ia) {
+            $indexes = array(
+                $this->type,
+                "$this->type:$this->subtype"
+            );
 
-			if($this->super_subtype)
-				array_push($indexes, "$this->type:$this->super_subtype");
-		} else {
-			$indexes = array();
-		}
+            if ($this->super_subtype) {
+                array_push($indexes, "$this->type:$this->super_subtype");
+            }
+        } else {
+            $indexes = array();
+        }
 
-    if(!$this->hidden){
-		    array_push($indexes, "$this->type:$this->super_subtype:user:$this->owner_guid");
-		    array_push($indexes, "$this->type:$this->subtype:user:$this->owner_guid");
-    } else {
-        array_push($indexes, "$this->type:$this->super_subtype:user:$this->owner_guid:hidden");
-        array_push($indexes, "$this->type:$this->subtype:user:$this->owner_guid:hidden");
+        if (!$this->hidden) {
+            array_push($indexes, "$this->type:$this->super_subtype:user:$this->owner_guid");
+            array_push($indexes, "$this->type:$this->subtype:user:$this->owner_guid");
+        } else {
+            array_push($indexes, "$this->type:$this->super_subtype:user:$this->owner_guid:hidden");
+            array_push($indexes, "$this->type:$this->subtype:user:$this->owner_guid:hidden");
+        }
+
+        array_push($indexes, "$this->type:container:$this->container_guid");
+        array_push($indexes, "$this->type:$this->subtype:container:$this->container_guid");
+
+
+        return $indexes;
     }
-
-		array_push($indexes, "$this->type:container:$this->container_guid");
-		array_push($indexes, "$this->type:$this->subtype:container:$this->container_guid");
-
-
-		return $indexes;
-	}
 
 	/*
 	 * LOCATABLE INTERFACE
@@ -1538,4 +1540,19 @@ abstract class ElggEntity extends ElggData implements
 
 		return true;
 	}
+
+    public function getRating()
+    {
+        $this->rating = (int) $this->rating;
+        return $this->rating === 0 ? 1 : $this->rating;
+    }
+
+    public function setRating($value)
+    {
+        if ($value !== 1 && $value !== 2) {
+            $this->rating = 1;
+        }
+        $this->rating = $value;
+        return $this;
+    }
 }

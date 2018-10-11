@@ -19,6 +19,22 @@ class PaymentsProvider extends Provider
 {
     public function register()
     {
+        $this->di->bind('Payments\Manager', function ($di) {
+            return new Manager();
+        });
+
+        $this->di->bind('Payments\Repository', function ($di) {
+            return new Repository();
+        }, [ 'useFactory' => true ]);
+
+        //
+
+        $this->di->bind('Payments\Points', function ($di) {
+            return new Points\Manager();
+        });
+
+        //
+
         $this->di->bind('BraintreePayments', function ($di) {
             $config = $di->get('Config');
             $braintree = new Braintree\Braintree(new Braintree_Configuration(), $di->get('Config'));

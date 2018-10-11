@@ -8,6 +8,8 @@ use Minds\Core\Di\Di;
 use Minds\Core\Data;
 use Minds\Core\Data\Cassandra\Prepared;
 use Minds\Entities;
+use Minds\Entities\DenormalizedEntity;
+use Minds\Entities\NormalizedEntity;
 
 class Repository
 {
@@ -58,7 +60,10 @@ class Repository
             }
         } elseif ($options['state']) {
             $template = "SELECT * FROM reports_by_state WHERE state = ?";
-            $values = [ (string) $options['state'] ];
+            if ($options['state'] === 'archived') {
+                $template .= ' ORDER BY guid DESC';
+            }
+            $values = [(string)$options['state']];
         }
 
         if ($allowFiltering) {
@@ -135,7 +140,7 @@ class Repository
     }
 
     /**
-     * @param \ElggEntity|string|integer $entity
+     * @param \ElggEntity|NormalizedEntity|DenormalizedEntity|string|integer $entity
      * @param Entities\User|string|integer $reporter
      * @param string|integer $reason
      * @param string $reason_note
@@ -151,7 +156,7 @@ class Repository
             return false;
         }
 
-        if (is_numeric($entity)) {
+        if (is_numeric($entity) || Core\Luid::isValid($entity)) {
             $entity = Entities\Factory::build($entity);
         }
 
@@ -178,17 +183,19 @@ class Repository
             entity_guid,
             time_created,
             reporter_guid,
+            entity_luid,
             owner_guid,
             state,
             reason,
             reason_note
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $values = [
             new Cassandra\Varint($guid),
             new Cassandra\Varint($entity_guid),
             new Cassandra\Timestamp(time()),
             new Cassandra\Varint($reporter),
+            method_exists($entity, 'getLuid') ? (string) $entity->getLuid() : '',
             new Cassandra\Varint($owner_guid),
             'review',
             (string) $reason,

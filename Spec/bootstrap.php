@@ -40,10 +40,27 @@ class Mock
 
     const BATCH_COUNTER = null;
     const BATCH_UNLOGGED = 1;
+    const CONSISTENCY_ALL = 1;
+    const CONSISTENCY_QUORUM = 2;
 
     public function __construct($a = null)
     {
         $this->a = $a;
+    }
+
+    public function withLatencyAwareRouting()
+    {
+        return $this;
+    }
+
+    public function withDefaultConsistency()
+    {
+        return $this;
+    }
+
+    public function withRetryPolicy()
+    {
+        return $this;
     }
 
     public static function collection()
@@ -82,7 +99,27 @@ class Mock
 
     }
 
+    public function time()
+    {
+        return (int) $this->a;
+    }
+
+    public function toInt()
+    {
+        return (int) $this->a;
+    }
+
+    public function toDouble()
+    {
+        return (double) $this->a;
+    }
+
     public function value()
+    {
+        return (string) $this->a;
+    }
+
+    public function __toString()
     {
         return (string) $this->a;
     }
@@ -117,6 +154,20 @@ class Mock
 
     }
 
+    public static function boolean()
+    {
+
+    }
+
+    public static function set()
+    {
+
+    }
+
+    public function add()
+    {
+
+    }
 }
 
 class_alias('Mock', 'Cassandra');
@@ -124,9 +175,16 @@ class_alias('Mock', 'Cassandra\ExecutionOptions');
 class_alias('Mock', 'Cassandra\Varint');
 class_alias('Mock', 'Cassandra\Timestamp');
 class_alias('Mock', 'Cassandra\Type');
+class_alias('Mock', 'Cassandra\Type\Set');
+class_alias('Mock', 'Cassandra\Type\Map');
 class_alias('Mock', 'Cassandra\Decimal');
 class_alias('Mock', 'Cassandra\Bigint');
+class_alias('Mock', 'Cassandra\Tinyint');
+class_alias('Mock', 'Cassandra\Set');
+class_alias('Mock', 'Cassandra\Map');
 class_alias('Mock', 'MongoDB\BSON\UTCDateTime');
+class_alias('Mock', 'Cassandra\RetryPolicy\Logging');
+class_alias('Mock', 'Cassandra\RetryPolicy\DowngradingConsistency');
 
 Minds\Core\Di\Di::_()->bind('Database\Cassandra\Cql', function($di) {
     return new Mock;

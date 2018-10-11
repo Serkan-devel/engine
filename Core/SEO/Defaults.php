@@ -28,51 +28,51 @@ class Defaults
     public function init()
     {
         Manager::setDefaults([
-          'title' =>  $this->config->site_name . ': Sign up or Log in',
+          'title' =>  $this->config->site_name,
           'description' => $this->config->site_description,
-          'og:title' => $this->config->site_name . ': Sign up or Log in',
+          'keywords' => $this->config->site_keywords,
+          'og:title' => $this->config->site_name,
           'og:url' => $this->config->site_url,
           'og:description' => $this->config->site_description,
           'og:app_id' => $this->config->site_fbAppId,
           'og:type' => 'website',
-          'og:image' => $this->config->site_url . 'assets/share/master.jpg',
-          'og:image:width' => 1024,
-          'og:image:height' => 681,
+          'og:image' => $this->config->cdn_assets_url . 'assets/logos/placeholder.jpg',
+          'og:image:width' => 471,
+          'og:image:height' => 199,
           'twitter:site' => '@minds',
           'twitter:card' => 'summary',
+          'smartbanner:title' => 'Minds',
+          'smartbanner:author' => 'Minds.com',
+          'smartbanner:price' => 'free',
+          'smartbanner:price-suffix-apple' => ' - On the App Store',
+          'smartbanner:price-suffix-google' => ' - In Google Play',
+          'smartbanner:icon-apple' => $this->config->cdn_assets_url . 'assets/logos/bulb.svg',
+          'smartbanner:icon-google' => $this->config->cdn_assets_url . 'assets/logos/bulb.svg',
+          'smartbanner:button' => 'VIEW',
+          'smartbanner:button-url-apple' => 'https://itunes.apple.com/app/minds-com/id961771928',
+          'smartbanner:button-url-google' => 'https://play.google.com/store/apps/details?id=com.minds.mobile',
+          'smartbanner:enabled-platforms' => 'android,ios',
         ]);
 
         /**
          * Channel default SEO roots
          */
-        Manager::add('/', function ($slugs = array()) {
-            if (isset($slugs[0]) && is_string($slugs[0])) {
-                $user = new Entities\User(strtolower($slugs[0]));
-                if (!$user->guid) {
-                    return array();
-                }
+        Manager::add('/blog', [$this, 'channelHandler']);
+        Manager::add('/', [$this, 'channelHandler']);
 
-                if (!$user->enabled || $user->banned == 'yes' || Helpers\Flags::shouldFail($user)) {
-                    header("HTTP/1.0 404 Not Found");
-                    return [
-                        'robots' => 'noindex'
-                    ];
-                }
-
-                return $meta = [
-                'title' => $user->name . ' | ' . $this->config->site_name,
-                'og:title' =>  $user->name . ' | ' . $this->config->site_name,
-                'og:type' => 'website',
-                'description' => "Subscribe to @$user->username on {$this->config->site_name}. " . strip_tags($user->briefdescription),
-                'og:description' => "Subscribe to @$user->username on {$this->config->site_name}. " . strip_tags($user->briefdescription),
-                'og:url' => $this->config->site_url . $user->username,
-                'og:image' => $user->getIconUrl('master'),
+        Manager::add('/crypto', function ($slugs = []) {
+            return [
+                'title' => 'The Minds Token',
+                'description' => 'Coming soon',
+                'og:title' => 'The Minds Token',
+                'og:description' => 'Coming soon',
+                'og:url' => '/token',
+                'og:image' => $this->config->cdn_assets_url . 'assets/videos/space-1/space.jpg',
                 'og:image:width' => 2000,
                 'og:image:height' => 1000,
                 'twitter:site' => '@minds',
                 'twitter:card' => 'summary',
-              ];
-            }
+            ];
         });
 
         /**
@@ -105,6 +105,9 @@ class Defaults
                   'og:image:height' => 1000,
                   'twitter:site' => '@minds',
                   'twitter:card' => 'summary',
+                  'al:ios:url' => 'minds://activity/' . $activity->guid,
+                  'al:android:url' => 'minds://minds/activity/' . $activity->guid,
+                  'robots' => $activity->getRating() == 1 ? 'all' : 'noindex',
                 ];
 
                 if ($activity->custom_type == 'video') {
@@ -166,8 +169,8 @@ class Defaults
             if (isset($_GET['referrer'])) {
                 $user = new Entities\User(strtolower($_GET['referrer']));
                 if ($user->name) {
-                    $meta['title'] = $meta['og:title'] = "Join $user->name on {$this->config->site_name} and get 100 views";
-                    $meta['og:url'] = "{$this->config->site_url}register?referrer={$user->username}";
+                    $meta['title'] = $meta['og:title'] = "Join $user->name on {$this->config->site_name}";
+                    $meta['og:url'] = "{$this->config->site_url}register;referrer={$user->username}";
                 }
             }
 
@@ -181,7 +184,130 @@ class Defaults
                 'og:title' => 'Login',
                 'og:description' => $this->config->site_description,
                 'og:url' => $this->config->site_url . 'login',
-                'og:image' => $this->config->site_url . 'assets/screenshots/login.png',
+                'og:image' => $this->config->cdn_assets_url . 'assets/screenshots/login.png',
+                'og:image:width' => 2000,
+                'og:image:height' => 1000,
+                'twitter:site' => '@minds',
+                'twitter:card' => 'summary',
+            ];
+
+            return $meta;
+        });
+
+        // channels
+        Manager::add('/channels', function ($slugs = []) {
+            $allowedSections = ['top', 'subscriptions', 'subscribers'];
+            $meta = [];
+
+            if(array_search($slugs[0], $allowedSections) !== false) {
+                $meta = [
+                    'og:url' => Core\Di\Di::_()->get('Config')->site_url . implode('/', $slugs),
+                    'og:image' => Core\Di\Di::_()->get('Config')->site_url . 'assets/share/master.jpg',
+                    'og:image:width' => 1024,
+                    'og:image:height' => 681
+                ];
+
+                switch($slugs[0]){
+                    case 'top':
+                        $meta = array_merge([
+                                'title' => 'Top Channels',
+                                'og:title' => 'Top Channels',
+                                'description' => 'List of top channels',
+                                'og:description' => 'List of top channels'
+                            ], $meta);
+                        break;
+                    case 'subscriptions':
+                        $meta = array_merge([
+                            'title' => "Your Subscriptions",
+                            'og:title' => "Your Subscriptions",
+                            'description' => "Channels you're subscribed to",
+                            'og:description' => "Channels you're subscribed to"
+                        ], $meta);
+                        break;
+                    case 'subscribers':
+                        $meta = array_merge([
+                            'title' => "Your Subscribers",
+                            'og:title' => "Your Subscribers",
+                            'description' => "Channels who are subscribed to you",
+                            'og:description' => "Channels who are subscribed to you"
+                        ], $meta);
+                        break;
+                    default:
+                        $meta = [];
+                }
+            }
+            return $meta;
+        });
+
+        /**
+         * Do not index search results
+         */
+        Manager::add('/search', function ($slugs = []) {
+            return [
+                'robots' => 'noindex'
+            ];
+        });
+
+        Manager::add('/wallet/tokens/transactions', function ($slugs = []) {
+            $meta = [
+                'title' => 'Transactions Ledger',
+                'description' => 'Keep track of your tokens transactions',
+                'og:title' => 'Transactions Ledger',
+                'og:description' => 'Keep track of your tokens transactions',
+                'og:url' => $this->config->site_url . 'wallet/tokens/transactions',
+                'og:image' => $this->config->cdn_assets_url . 'assets/photos/graph.jpg',
+                'og:image:width' => 2000,
+                'og:image:height' => 1000,
+                'twitter:site' => '@minds',
+                'twitter:card' => 'summary',
+            ];
+
+            return $meta;
+        });
+
+        Manager::add('/wallet/tokens/contributions', function ($slugs = []) {
+            $meta = [
+                'title' => 'Contributions Ledger',
+                'description' => 'Keep track of your contributions to Minds',
+                'og:title' => 'Contributions Ledger',
+                'og:description' => 'Keep track of your contributions to Minds',
+                'og:url' => $this->config->site_url . 'wallet/tokens/contributions',
+                'og:image' => $this->config->cdn_assets_url . 'assets/logos/placeholder-bulb.jpg',
+                'og:image:width' => 2000,
+                'og:image:height' => 1000,
+                'twitter:site' => '@minds',
+                'twitter:card' => 'summary',
+            ];
+
+            return $meta;
+        });
+
+        Manager::add('/wallet/tokens/withdraw', function ($slugs = []) {
+            $meta = [
+                'title' => 'Token Rewards Withdrawal',
+                'description' => 'Withdraw your token rewards',
+                'og:title' => 'Login',
+                'og:description' => 'Withdraw your token rewards',
+                'og:url' => $this->config->site_url . 'wallet/tokens/withdraw',
+                'og:image' => $this->config->cdn_assets_url . 'assets/photos/graph.jpg',
+                'og:image:width' => 2000,
+                'og:image:height' => 1000,
+                'twitter:site' => '@minds',
+                'twitter:card' => 'summary',
+            ];
+
+            return $meta;
+        });
+
+
+        Manager::add('/wallet/tokens/addresses', function ($slugs = []) {
+            $meta = [
+                'title' => 'Wallet Address Configuration',
+                'description' => 'Configure your wallet address',
+                'og:title' => 'Wallet Address Configuration',
+                'og:description' => 'Configure your wallet address',
+                'og:url' => $this->config->site_url . 'wallet/tokens/addresses',
+                'og:image' => $this->config->cdn_assets_url . 'assets/photos/graph.jpg',
                 'og:image:width' => 2000,
                 'og:image:height' => 1000,
                 'twitter:site' => '@minds',
@@ -192,30 +318,25 @@ class Defaults
         });
 
         $marketing = [
-            'affiliates' => [
-                'title' => 'Affiliate Program',
-                'description' => 'Earn 25% of the revenue Minds generates from your referrals',
-                'image' => 'assets/photos/balloon.jpg'
-            ],
-            'monetization' => [
-                'title' => 'Monetization',
-                'description' => 'Start earning revenue on Minds by monetizing your channel',
-                'image' => 'assets/photos/sunset.jpg'
-            ],
             'plus' => [
                 'title' => 'Minds Plus',
-                'description' => 'Opt-out of boosts, earn 1,000 monthly points, access exclusive Minds content, and more',
+                'description' => 'Upgrade your channel for premium features',
                 'image' => 'assets/photos/fractal.jpg'
             ],
             'wallet' => [
                 'title' => 'Wallet',
-                'description' => 'Your Wallet keeps track of your points, payouts, and how much money you’ve earned on Minds.',
-                'image' => 'assets/screenshots/register.png'
+                'description' => 'Manage all of your transactions and earnings on Minds',
+                'image' => 'assets/photos/graph.jpg'
             ],
             'wire' => [
                 'title' => 'Wire',
-                'description' => 'Exchange points, dollars and Bitcoin directly with other channels on Minds',
+                'description' => 'Exchange tokens with other channels on Minds',
                 'image' => 'assets/photos/blown-bulb.jpg'
+            ],
+            'branding' => [
+                'title' => 'Branding',
+                'description' => 'Logos, assets and styling guides',
+                'image' => 'assets/logos/placeholder.jpg',
             ],
             'boost' => [
                 'title' => 'Boost',
@@ -226,7 +347,27 @@ class Defaults
                 'title' => 'Localization',
                 'description' => 'Help translate Minds into every global language',
                 'image' => 'assets/photos/satellite.jpg'
-            ]
+            ],
+            'token' => [
+                'title' => 'The Minds Token',
+                'description' => 'Earn crypto for your contributions to the network',
+                'image' => 'assets/photos/globe.jpg'
+            ],
+            'faq' => [
+                'title' => 'FAQ',
+                'description' => 'Everything you need to know about Minds',
+                'image' => 'assets/photos/canyon.jpg'
+            ],
+            'wallet/101' => [
+                'title' => 'Token 101',
+                'description' => 'Everything you need to know about Minds Tokens',
+                'image' => 'assets/photos/canyon.jpg',
+            ],
+            'wallet/tokens/101' => [
+                'title' => 'Token 101',
+                'description' => 'Everything you need to know about Minds Tokens',
+                'image' => 'assets/photos/canyon.jpg',
+            ],
         ];
 
         foreach ($marketing as $uri => $page) {
@@ -245,6 +386,42 @@ class Defaults
                 ];
                 return $meta;
             });
+        }
+    }
+
+    public function channelHandler($slugs = []) 
+    {
+        $username = ($slugs[0] == 'blog') ? $slugs[1]: $slugs[0];
+        if (isset($username) && is_string($username)) {
+            $user = new Entities\User(strtolower($username));
+            if (!$user->guid) {
+                return array();
+            }
+
+            if (!$user->enabled || $user->banned == 'yes' || Helpers\Flags::shouldFail($user)) {
+                header("HTTP/1.0 404 Not Found");
+                return [
+                    'robots' => 'noindex'
+                ];
+            }
+
+            return $meta = [
+                'title' => $user->name . ' | ' . $this->config->site_name,
+                'og:title' =>  $user->name . ' | ' . $this->config->site_name,
+                'og:type' => 'website',
+                'description' => "Subscribe to @$user->username on {$this->config->site_name}. " . strip_tags($user->briefdescription),
+                'og:description' => "Subscribe to @$user->username on {$this->config->site_name}. " . strip_tags($user->briefdescription),
+                'og:url' => $this->config->site_url . $user->username,
+                'og:image' => $user->getIconUrl('master'),
+                'og:image:width' => 2000,
+                'og:image:height' => 1000,
+                'twitter:site' => '@minds',
+                'twitter:card' => 'summary',
+                'al:ios:url' => 'minds://channel/' . $user->guid,
+                'al:android:url' => 'minds://minds/channel/' . $user->guid,
+                'al:ios:app_name' => 'Minds',
+                'robots' => $user->getRating() == 1 ? 'all' : 'noindex',
+            ];
         }
     }
 

@@ -58,6 +58,8 @@ class analytics implements Interfaces\Api, Interfaces\ApiIgnorePam
 
     public function post($pages)
     {
+        Factory::isLoggedIn();
+
         $event = new Core\Analytics\Metrics\Event();
         if (!isset($_POST['type'])) {
             return Factory::response(['status' => 'error', 'message' => 'type not set']);
@@ -84,6 +86,7 @@ class analytics implements Interfaces\Api, Interfaces\ApiIgnorePam
         $event->setType($type)
             ->setFields($fields)
             ->setUserGuid(Core\Session::getLoggedInUser()->guid)
+            ->setUserPhoneNumberHash(Core\Session::getLoggedInUser()->getPhoneNumberHash())
             ->setEntityGuid((string) $entity->getGUID())
             ->setEntityType($entity->type)
             ->setEntitySubtype($entity->subtype)

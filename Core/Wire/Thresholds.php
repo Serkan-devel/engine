@@ -4,6 +4,7 @@ namespace Minds\Core\Wire;
 use Minds\Core;
 use Minds\Core\Di\Di;
 use Minds\Core\Payments;
+use Minds\Core\Util\BigNumber;
 
 class Thresholds
 {
@@ -16,47 +17,63 @@ class Thresholds
             throw new \Exception('Entity cannot be paywalled');
         }
 
-        if (is_object($user)) {
-            $user = $user->guid;
+	    if ($user && ($user->guid === $entity->getOwnerEntity()->guid || $user->isAdmin())) {
+            return true;
+        }
+
+        $isPaywall = false;
+        if (method_exists($entity, 'isPaywall') && $entity->isPaywall()) {
+            $isPaywall = true;
+        } elseif (method_exists($entity, 'getFlag') && $entity->getFlag('paywall')) {
+            $isPaywall = true;
         }
 
         $threshold = $entity->getWireThreshold();
 
-        //make sure legacy posts can work
-        if (!$threshold && $entity->isPaywall()) {
+        if (!$threshold && $isPaywall) {
             $threshold = [
-              'type' => 'money',
-              'min' => $entity->getOwnerEntity()->getMerchant()['exclusive']['amount']
+                'type' => 'money',
+                'min' => $entity->getOwnerEntity()->getMerchant()['exclusive']['amount']
             ];
         }
 
-        $amount = 0;
-        $repository = Di::_()->get('Wire\Repository');
-        if ($threshold['type'] == 'points') {
-            $amount = $repository->getSumBySenderForReceiver($user, $entity->getOwnerGUID(), 'points', (new \DateTime('midnight'))->modify("-30 days"));
-        } else {
-            $amount = $repository->getSumBySenderForReceiver($user, $entity->getOwnerGUID(), 'money', (new \DateTime('midnight'))->modify("-30 days"));
-        }
+        //make sure legacy posts can work
+        if ($isPaywall) {
 
-        $allowed = $amount - $threshold['min'] >= 0;
+            $amount = 0;
 
-        if ($allowed) {
-            return true;
-        }
+            /** @var Sums $sums */
+            $sums = Di::_()->get('Wire\Sums');
+            $sums->setReceiver($entity->getOwnerGUID())
+                ->setSender($user->guid)
+                ->setFrom((new \DateTime('midnight'))->modify("-30 days")->getTimestamp());
 
-        //Plus hack
-        if ($entity->owner_guid == '730071191229833224') {
-            //Check if a plus subscription exists
-            $repo = new Payments\Plans\Repository();
-            $plan = $repo->setEntityGuid(0)
-                ->setUserGuid($user)
-                ->getSubscription('plus');
+            $amount = $sums->getSent();
 
-            if ($plan->getStatus() == 'active') {
-                return true; 
+            $minThreshold = $threshold['min'];
+
+            if ($threshold['type'] === 'tokens') {
+                $minThreshold = BigNumber::toPlain($threshold['min'], 18);
             }
+
+            $allowed = BigNumber::_($amount)->sub($minThreshold)->gte(0);
+
+            if ($allowed) {
+                return true;
+            }
+
+            //Plus hack
+            if ($entity->owner_guid == '730071191229833224') {
+                $plus = (new Core\Plus\Subscription())->setUser($user);
+
+                if ($plus->isActive()) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
-        return false; 
+        return true;
     }
 }

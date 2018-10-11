@@ -8,31 +8,37 @@ namespace Minds\Controllers\api\v1\wire;
 use Minds\Api\Factory;
 use Minds\Core;
 use Minds\Core\Di\Di;
+use Minds\Core\Util\BigNumber;
 
 class ledger
 {
     public function get($pages)
     {
         $actor_guid = isset($pages[0]) ? $pages[0] : Core\Session::getLoggedInUser()->guid;
-        $repo = Di::_()->get('Wire\Repository');
+        /** @var Repository $repository */
+        $repository = Di::_()->get('Wire\Repository');
         $type = isset($_GET['type']) ? $_GET['type'] : 'received';
         $start = isset($_GET['start']) ? ((int) $_GET['start']) : (new \DateTime('midnight'))->modify("-30 days")->getTimestamp();
 
         $timeframe = [
-            'start' => $start,
-            'end' => time()
+            'gte' => $start,
+            'lte' => time()
         ];
 
         switch ($type) {
             case 'sent':
-                $result = $repo->getWiresBySender($actor_guid, 'money', $timeframe, [
-                    'page_size' => 1000
+                $result = $repository->getList([
+                    'sender_guid' => $actor_guid,
+                    'timestamp' => $timeframe,
+                    'limit' => 1000
                 ]);
                 break;
 
             case 'received':
-                $result = $repo->getWiresByReceiver($actor_guid, 'money', $timeframe, [
-                    'page_size' => 1000
+                $result = $repository->getList([
+                    'receiver_guid' => $actor_guid,
+                    'timestamp' => $timeframe,
+                    'limit' => 1000
                 ]);
                 break;
 
@@ -60,7 +66,7 @@ class ledger
                 $user->getEmail(),
                 date('Y-m-d H:i:s', $wire->getTimeCreated()),
                 $wire->getMethod(),
-                $wire->getAmount()
+                $wire->getMethod() === 'tokens' ? BigNumber::fromPlain($wire->getAmount(), 18) : $wire->getAmount()
             ]);
         }
 

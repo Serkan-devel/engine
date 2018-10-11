@@ -21,20 +21,20 @@ class Register
             $minds = new Entities\User('minds');
             $params['user']->subscribe($minds->guid);
 
-            //@todo maybe put this in background process
-            foreach (array("welcome_boost", "welcome_chat", "welcome_discover") as $notif_type) {
-                Core\Events\Dispatcher::trigger('notification', 'welcome', array(
-                  'to' => [ $guid ],
-                  'from' => "100000000000000519",
-                  'notification_view' => $notif_type,
-                ));
-            }
+            //setup chat keys
+            /*$openssl = new Core\Messenger\Encryption\OpenSSL();
+            $keystore = (new Core\Messenger\Keystore($openssl))
+                ->setUser($params['user']);
+            $keypair = $openssl->generateKeypair($params['password']);
+
+            $keystore->setPublicKey($keypair['public'])
+                ->setPrivateKey($keypair['private'])
+                ->save();*/
 
             //@todo again, maybe in a background task?
             if ($params['referrer']) {
                 $user = new Entities\User(strtolower(ltrim($params['referrer'], '@')));
                 if ($user->guid) {
-                    Helpers\Wallet::createTransaction($user->guid, 100, $guid, "Referred @" . $_POST['username']);
                     $params['user']->referrer = (string) $user->guid;
                     $params['user']->save();
                     $params['user']->subscribe($user->guid);
@@ -65,6 +65,11 @@ class Register
                   ->setHtml($template);
                 $mailer = new Core\Email\Mailer();
                 $mailer->queue($message);
+
+                Core\Queue\Client::build()->setQueue("Registered")
+                    ->send([
+                        "user_guid" => $params['user']->guid,
+                    ]);
             } catch (\Exception $e) { }
         });
     }

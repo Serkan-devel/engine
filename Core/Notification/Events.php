@@ -34,7 +34,7 @@ class Events
                 $from = $params['from'];
             }
 
-            if ($params['entity'] && !is_object($params['entity'])) {
+            if (isset($params['entity']) && $params['entity'] && !is_object($params['entity'])) {
                 $params['entity'] = Entities\Factory::build($params['entity']);
             }
 
@@ -42,11 +42,23 @@ class Events
                 'cache' => true
             ]);
 
+            $entity = $params['entity'];
+            $description = isset($params['description']) ? $params['description'] : '';
+
+            if ($entity instanceof Core\Blogs\Blog) {
+                $entity = clone $entity;
+                $entity->setBody(substr($entity->getBody(), 0, 65535));
+            }
+
+            if (strlen($description) > 65535) {
+                $description = substr($description, 0, 65535);
+            }
+
             $notification = (new Entities\Notification())
-                ->setEntity($params['entity'])
+                ->setEntity($entity)
                 ->setFrom($from_user)
                 ->setNotificationView($params['notification_view'])
-                ->setDescription(isset($params['description']) ? $params['description'] : '')
+                ->setDescription($description)
                 ->setParams($params['params'])
                 ->setTimeCreated(time());
 
@@ -78,7 +90,7 @@ class Events
             }
 
             if ($type == 'comment') {
-                $message = $params->description;
+                $message = $params->getBody();
             }
 
             if ($params->title) {
@@ -113,14 +125,14 @@ class Events
                         break;
                     }
                 }
-                
+
                 if ($to) {
                     Dispatcher::trigger('notification', 'all', [
                         'to' => $to,
                         'entity' => $params,
                         'notification_view' => 'tag',
                         'description' => $params->message,
-                        'title' => $params->title
+                        'params' => ['title' => $params->title]
                     ]);
                 }
             }
@@ -135,19 +147,21 @@ class Events
             }
 
             $entity = $notification->getEntity();
-            if ($params['to'] && $entity && in_array($entity->type, [ 'activity', 'object', 'comment' ])) {
-                $muted = array_map([ __CLASS__, 'toString' ], (new Entity($entity))->getMutedUsers());
-                $params['to'] = array_map([ __CLASS__, 'toString' ], $params['to']);
-                $params['to'] = array_diff($params['to'], $muted);
-            }
 
-            if ($entity->parent_guid) {
-                $parent = Entities\Factory::build($entity->parent_guid, [ 'cache' => false ]);
+            if ($entity->parent_guid || method_exists($entity, 'getEntityGuid')) {
+                $parentGuid = method_exists($entity, 'getEntityGuid') ? $entity->getEntityGuid() : $entity->parent_guid;
+                $parent = Entities\Factory::build($parentGuid, [ 'cache' => false ]);
 
                 if ($parent && method_exists($parent, 'export')) {
+                    $exportedParent = $parent->export();
+
+                    if (isset($exportedParent['guid'])) {
+                        $exportedParent['guid'] = (string) $exportedParent['guid'];
+                    }
+
                     $notification->setParams(array_merge(
                         $notification->getParams() ?: [],
-                        [ 'parent' => $parent->export() ]
+                        [ 'parent' => $exportedParent ]
                     ));
                 }
             }
@@ -177,19 +191,20 @@ class Events
                   ->setOwner($to_user)
                   ->save();
 
+                $counters->setUser($to_user)
+                  ->increaseCounter($to_user);
 
                 $params = $notification->getParams();
                 $params['notification_view']  = $notification->getNotificationView();
+
                 Push::_()->queue([
                     'uri' => 'notification',
                     'from' => $notification->getFrom(),
                     'to' => $notification->getTo(),
                     'notification' => $notification,
-                    'params' => $params
+                    'params' => $params,
+                    'count' => $counters->getCount()
                 ]);
-
-                $counters->setUser($to_user)
-                  ->increaseCounter($to_user);
 
                 try {
                     (new Sockets\Events())

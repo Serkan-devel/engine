@@ -56,16 +56,15 @@ class Notifications
         $me = $activity['ownerObj']['guid'];
 
         return Queue\Client::build()
-        ->setExchange('mindsqueue')
-        ->setQueue('NotificationDispatcher')
-        ->send([
-            'type' => 'group',
-            'entity' => $this->group->getGuid(),
-            'params' => [
-                'activity' => is_object($activity) ? $activity->guid : $activity['guid'],
-                'exclude' => [ $me ]
-            ]
-        ]);
+            ->setExchange('mindsqueue')
+            ->setQueue('GroupsNotificationDispatcher')
+            ->send([
+                'entity' => $this->group->getGuid(),
+                'params' => [
+                    'activity' => is_object($activity) ? $activity->guid : $activity['guid'],
+                    'exclude' => [ $me ]
+                ]
+            ]);
     }
 
     /**
@@ -94,7 +93,7 @@ class Notifications
         $from_user = $notification->getFrom();
 
         while (true) {
-            echo "[notification]: Running from $offset \n";
+            echo "[notification][group][$activity->container_guid]: Running from $offset \n";
 
             $guids = $this->getRecipients([
                 'exclude' => $params['exclude'] ?: [],
@@ -122,9 +121,9 @@ class Notifications
                 $pct = ($i / count($guids)) * 100;
                 echo "[notification]: $i / " . count($guids) . " ($pct%) ";
 
-                if ($from_user->guid && Security\ACL\Block::_()->isBlocked($from_user, $recipient)) {
-                    continue;
-                }
+                //if ($from_user->guid && Security\ACL\Block::_()->isBlocked($from_user, $recipient)) {
+                //    continue;
+                //}
 
                 $this->notifications->setOwner($recipient);
                 $this->notifications->store($notification->export());

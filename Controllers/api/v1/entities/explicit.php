@@ -7,11 +7,15 @@
  */
 namespace Minds\Controllers\api\v1\entities;
 
-use Minds\Core;
-use Minds\Entities;
-use Minds\Interfaces;
 use Minds\Api\Factory;
 use Minds\Core\Events\Dispatcher;
+use Minds\Core\Entities\Actions\Save;
+use Minds\Core\Session;
+use Minds\Entities;
+use Minds\Interfaces;
+use Minds\Helpers;
+use Minds\Core\Queue\Client as Queue;
+use Minds\Core;
 
 class explicit implements Interfaces\Api
 {
@@ -28,45 +32,90 @@ class explicit implements Interfaces\Api
      */
     public function post($pages)
     {
-        $activity = Entities\Factory::build($pages[0]);
+        $entity = Entities\Factory::build($pages[0]);
 
-        if (!$activity->canEdit()) {
+        if (!$entity->canEdit()) {
             return Factory::response(array('status' => 'error', 'message' => 'Can´t edit this Post'));
         }
-        
+
         $value = (bool) $_POST['value'];
 
-        if (method_exists($activity, 'setMature')) {
-            $activity->setMature($value);
-        } elseif (method_exists($activity, 'setFlag')) {
-            $activity->setFlag('mature', $value);
-        } 
-        if (isset($activity->mature)) {
-            $activity->mature = $value;
-        }
+        if ($entity->type === 'user') {
+            $matureLock = $entity->getMatureLock();
+            $isAdmin = Session::isAdmin();
 
-        if (isset($activity->custom_data['mature'])) {
-            $activity->custom_data['mature'] = $activity->getMature();
-        }
+            if ($matureLock && !$isAdmin) {
+                 return Factory::response([
+                     'status' => 'error',
+                     'message' => 'You can not remove the mature flag from your channel',
+                 ]);
+            }
 
-        if (isset($activity->custom_data[0]['mature'])) {
-            $activity->custom_data[0]['mature'] = $activity->getMature();
-        }
+            $entity->setMature($value);
+            if ($isAdmin) {
+                $entity->setMatureLock($value);
 
-        if ($activity->entity_guid) {
-            $attachment = Entities\Factory::build($activity->entity_guid);
+                Queue::build()
+                    ->setQueue('MatureBatch')
+                    ->send([
+                        "user_guid" => $entity->guid,
+                        "value" => $value
+                    ]);
 
-            if ($attachment && $attachment->guid && $attachment instanceof Interfaces\Flaggable) {
-                $attachment->setFlag('mature', $activity->getMature());
-                $attachment->save();
+                //update all sessions for this user
+                (new Core\Data\Sessions())
+                    ->syncRemote($entity->guid, $entity);
+            }
+        } else {
+            // mature locked channels are not allowed to remove explicit
+            if ($value === false && Session::getLoggedInUser()->getMatureLock()) {
+                return Factory::response(array('status' => 'error', 'message' => 'You can not remove the explit flag'));
+            }
+
+            if (Helpers\MagicAttributes::setterExists($entity, 'setMature')) {
+                $entity->setMature($value);
+            } elseif (method_exists($entity, 'setFlag')) {
+                $entity->setFlag('mature', $value);
+            }
+            if (isset($entity->mature)) {
+                $entity->mature = $value;
+            }
+
+            if (isset($entity->custom_data['mature'])) {
+                $entity->custom_data['mature'] = $entity->getMature();
+            }
+
+            if (isset($entity->custom_data[0]['mature'])) {
+                $entity->custom_data[0]['mature'] = $entity->getMature();
+            }
+
+            if ($entity->entity_guid) {
+                $attachment = Entities\Factory::build($entity->entity_guid);
+
+                if ($attachment && $attachment->guid && $attachment instanceof Interfaces\Flaggable) {
+                    if (method_exists($attachment, 'setMature')) {
+                        $attachment->setMature($value);
+                    } elseif (method_exists($attachment, 'setFlag')) {
+                        $attachment->setFlag('mature', $value);
+                    }
+                    if (isset($attachment->mature)) {
+                        $attachment->mature = $value;
+                    }
+                    $attachment->save();
+                }
             }
         }
 
         Dispatcher::trigger('search:index', 'all', [
-            'entity' => $activity
+            'entity' => $entity
         ]);
-        
-        $response = [ 'done' => (bool) $activity->save() ];
+
+
+        $save = new Save();
+        $saved = $save->setEntity($entity)
+            ->save();
+
+        $response = [ 'done' => (bool) $saved ];
 
         return Factory::response($response);
     }

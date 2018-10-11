@@ -77,14 +77,17 @@ class Mailer
         return $this;
     }
 
-    public function queue($message)
+    public function queue($message, $priority = false)
     {
+        $queueName = $priority ? 'PriorityEmail' : 'Email';
         try {
-            $this->queue->setQueue("Email")
+            $this->queue->setQueue($queueName)
                 ->send([
                     "message" => serialize($message)
                 ]);
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+            var_dump($e); exit;
+        }
     }
 
     public function getStats()

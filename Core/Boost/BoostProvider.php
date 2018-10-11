@@ -57,4 +57,5 @@ class BoostProvider extends Provider
             return new Payment();
         }, ['useFactory' => true]);
     }
+
 }

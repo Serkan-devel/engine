@@ -30,7 +30,7 @@ class ChannelVotes extends Aggregate
             ]
         ];
 
-        if ($this->type) {
+        /*if ($this->type) {
             $must[]['match'] = [
                 'entity_type' => $this->type
             ];
@@ -40,7 +40,7 @@ class ChannelVotes extends Aggregate
             $must[]['match'] = [
                 'entity_subtype' => $this->subtype
             ];
-        }
+        }*/
 
         $query = [
             'index' => 'minds-metrics-*',
@@ -49,7 +49,7 @@ class ChannelVotes extends Aggregate
             'body' => [
                 'query' => [
                     'bool' => [
-                        'filter' => $filter,
+                        //'filter' => $filter,
                         'must' => $must
                     ]
                 ],
@@ -57,7 +57,18 @@ class ChannelVotes extends Aggregate
                     'entities' => [
                         'terms' => [ 
                             'field' => 'entity_owner_guid.keyword',
-                            'size' => $this->limit
+                            'size' => $this->limit,
+                            'order' => [
+                                'uniques' => 'desc'
+                            ]
+                        ],
+                        'aggs' => [
+                            'uniques' => [
+                                'cardinality' => [
+                                    'field' => 'user_phone_number_hash.keyword',
+                                    'precision_threshold' => 40000
+                                ]
+                            ]
                         ]
                     ]
                 ]
@@ -71,7 +82,7 @@ class ChannelVotes extends Aggregate
 
         $entities = [];
         foreach ($result['aggregations']['entities']['buckets'] as $entity) {
-            $entities[$entity['key']] = $entity['doc_count'] * $this->multiplier;
+            $entities[$entity['key']] = $entity['uniques']['value'] * $this->multiplier;
         }
         return $entities;
     }

@@ -118,7 +118,7 @@ class MembershipSpec extends ObjectBehavior
         $this->beConstructedWith($db, null, $acl);
 
         $user->get('guid')->willReturn(1);
-        $user->getGroupMembership()->willReturn([]);        
+        $user->getGroupMembership()->willReturn([]);
         $user->context(Argument::type('string'))->willReturn();
         $user->setGroupMembership(Argument::any())->willReturn($user);
         $user->save()->willReturn(true);
@@ -130,6 +130,7 @@ class MembershipSpec extends ObjectBehavior
         $db->setGuid(1)->shouldBeCalled();
         $db->check('member', 50)->shouldBeCalled()->willReturn(false);
         $db->check('group:banned', 50)->shouldBeCalled()->willReturn(false);
+        $db->check('membership_request', 50)->shouldBeCalled()->willReturn(false);
         $db->create('membership_request', 50)->shouldBeCalled()->willReturn(true);
 
         $acl->write($group, $user)->shouldBeCalled()->willReturn(false);
@@ -144,7 +145,7 @@ class MembershipSpec extends ObjectBehavior
         $this->beConstructedWith($db, null, $acl);
 
         $user->get('guid')->willReturn(1);
-        $user->getGroupMembership()->willReturn([]);        
+        $user->getGroupMembership()->willReturn([]);
         $user->context(Argument::type('string'))->willReturn();
         $user->setGroupMembership(Argument::any())->willReturn($user);
         $user->save()->willReturn(true);
@@ -171,7 +172,7 @@ class MembershipSpec extends ObjectBehavior
         $this->beConstructedWith($db, $notifications);
 
         $user->get('guid')->willReturn(1);
-        $user->getGroupMembership()->willReturn([]);        
+        $user->getGroupMembership()->willReturn([]);
         $user->context(Argument::type('string'))->willReturn();
         $user->setGroupMembership(Argument::any())->willReturn($user);
         $user->save()->willReturn(true);
@@ -194,7 +195,7 @@ class MembershipSpec extends ObjectBehavior
         $this->beConstructedWith($db, $notifications, $acl);
 
         $user->get('guid')->willReturn(1);
-        $user->getGroupMembership()->willReturn([]);        
+        $user->getGroupMembership()->willReturn([]);
         $user->context(Argument::type('string'))->willReturn();
         $user->setGroupMembership(Argument::any())->willReturn($user);
         $user->save()->willReturn(true);
@@ -218,7 +219,7 @@ class MembershipSpec extends ObjectBehavior
         $this->kick($user)->shouldReturn(true);
     }
 
-    public function it_should_not_kick_if_not_an_owner(GroupEntity $group, Relationships $db, User $user, User $actor, \Minds\Core\Groups\Notifications $notifications, ACL $acl)
+    public function it_should_not_kick_if_not_an_owner(GroupEntity $group, Relationships $db, User $user, User $actor,  \Minds\Core\Groups\Notifications $notifications, ACL $acl)
     {
         $this->beConstructedWith($db, $notifications, $acl);
 
@@ -272,7 +273,7 @@ class MembershipSpec extends ObjectBehavior
         $this->beConstructedWith($db, $notifications, $acl);
 
         $user->get('guid')->willReturn(1);
-        $user->getGroupMembership()->willReturn([]);        
+        $user->getGroupMembership()->willReturn([]);
         $user->context(Argument::type('string'))->willReturn();
         $user->setGroupMembership(Argument::any())->willReturn($user);
         $user->save()->willReturn(true);

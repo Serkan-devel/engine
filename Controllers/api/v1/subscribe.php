@@ -129,7 +129,7 @@ class subscribe implements Interfaces\Api
         }
 
         $canSubscribe = Security\ACL::_()->interact(Core\Session::getLoggedinUser(), $pages[0]) &&
-            Security\ACL::_()->interact($pages[0], Core\Session::getLoggedinUser());
+            Security\ACL::_()->interact($pages[0], Core\Session::getLoggedinUser(), 'subscribe');
 
         if (!$canSubscribe) {
             return Factory::response([
@@ -150,6 +150,7 @@ class subscribe implements Interfaces\Api
             ->setAction('subscribe')
             ->setProduct('platform')
             ->setUserGuid((string) Core\Session::getLoggedInUser()->guid)
+            ->setUserPhoneNumberHash(Core\Session::getLoggedInUser()->getPhoneNumberHash())
             ->setEntityGuid((string) $pages[0])
             ->push();
 
@@ -170,6 +171,7 @@ class subscribe implements Interfaces\Api
             ->setAction('unsubscribe')
             ->setProduct('platform')
             ->setUserGuid((string) Core\Session::getLoggedInUser()->guid)
+            ->setUserPhoneNumberHash(Core\Session::getLoggedInUser()->getPhoneNumberHash())
             ->setEntityGuid((string) $pages[0])
             ->push();
 

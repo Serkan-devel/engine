@@ -1,11 +1,15 @@
 <?php
 namespace Minds\Core\Payments;
 
+use Cassandra\Varint;
+use Minds\Core;
 use Minds\Core\Di\Di;
 use Minds\Core\Email\Campaigns;
 use Minds\Core\Events\Dispatcher;
+use Minds\Core\Events\Event;
 use Minds\Core\Payments;
 use Minds\Core\Session;
+use Minds\Entities\User;
 
 /**
  * Minds Payments Events
@@ -64,19 +68,18 @@ class Events
 
         });
 
-        Dispatcher::register('export:extender', 'blog', function($event) {
+        Dispatcher::register('export:extender', 'blog', function(Event $event) {
             $params = $event->getParameters();
+            /** @var Core\Blogs\Blog $blog */
             $blog = $params['entity'];
-            if($blog->subtype != 'blog'){
-                return;
-            }
             $export = $event->response() ?: [];
             $currentUser = Session::getLoggedInUserGuid();
 
             $dirty = false;
 
             if ($blog->isPaywall() && $blog->owner_guid != $currentUser) {
-                $export['description'] = null;
+                $export['description'] = '';
+                $export['body'] = '';
                 $dirty = true;
             }
 
@@ -87,7 +90,6 @@ class Events
             if (!$currentUser) {
                 return;
             }
-
         });
 
         Dispatcher::register('acl:read', 'object', function($event) {
@@ -105,13 +107,9 @@ class Events
 
             //Plus hack
             if ($entity->owner_guid == '730071191229833224') {
-                //Check if a plus subscription exists
-                $repo = new Payments\Plans\Repository();
-                $plan = $repo->setEntityGuid(0)
-                    ->setUserGuid($user->guid)
-                    ->getSubscription('plus');
+                $plus = (new Core\Plus\Subscription())->setUser($user);
 
-                if ($plan->getStatus() == 'active') {
+                if ($plus->isActive()) {
                     return $event->setResponse(true);
                 }
             }
@@ -124,12 +122,22 @@ class Events
                 return $event->setResponse(true);
             }
 
-            $repo = new Payments\Plans\Repository();
-            $plan = $repo->setEntityGuid($entity->owner_guid)
-                ->setUserGuid($user->guid)
-                ->getSubscription('exclusive');
+            /** @var Subscriptions\Manager $manager */
+            /*$manager = Di::_()->get('Payments\Subscriptions\Manager');
 
-            return $event->setResponse($plan->getStatus() == 'active');
+            $manager
+                ->setUserGuid($user->guid)
+                ->setEntityGuid($entity->owner_guid)
+                ->setType('exclusive')
+                ->setPaymentMethod('money');
+
+            $exclusiveSubscription = $manager->fetchSubscription([ 'hydrate' => false ]);
+
+            if ($exclusiveSubscription) {
+                return $event->setResponse($exclusiveSubscription['status'] == 'active');
+            }*/
+
+            return $event->setResponse(false);
         });
 
         Dispatcher::register('wire-payment-email', 'object', function ($event) {
@@ -166,5 +174,36 @@ class Events
 
             return $event->setResponse(true);
         });
+
+        Core\Events\Dispatcher::register('invoice:email', 'all', function ($event) {
+            $params = $event->getParameters();
+            $user = $params['user'];
+            if (!$user) {
+                return false;
+            }
+            $amount = $params['amount'];
+            if (!$amount) {
+                return false;
+            }
+
+            $currency = $params['currency'];
+            if (!$currency) {
+                return false;
+            }
+
+            $description = $params['description'];
+            if (!$description) {
+                return false;
+            }
+
+            $campaign = new Campaigns\Invoice();
+            $campaign->setUser($user)
+                ->setAmount($amount)
+                ->setCurrency($currency)
+                ->setDescription($description)
+                ->send();
+            return $event->setResponse(true);
+        });
+
     }
 }

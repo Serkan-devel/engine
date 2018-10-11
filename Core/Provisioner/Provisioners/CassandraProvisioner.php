@@ -151,6 +151,74 @@ class CassandraProvisioner implements ProvisionerInterface
                     [ 'alias' => 'wire_sender_guid_idx', 'expr' => 'sender_guid' ]
                 ]
             ],
+            'blockchain_pending' => [
+                'schema' => [
+                    'type' => 'text',
+                    'tx_id' => 'text',
+                    'sender_guid' => 'varint',
+                    'data' => 'text',
+                ],
+                'primaryKeys' => [
+                    'type',
+                    'tx_id'
+                ],
+                'attributes' => [
+                    'compaction = {\'class\': \'org.apache.cassandra.db.compaction.LeveledCompactionStrategy\'}'
+                ]
+            ],
+            'blockchain_transactions_mainnet' => [
+                'schema' => [
+                    'user_guid' => 'varint',
+                    'timestamp' => 'timestamp',
+                    'wallet_address' => 'text',
+                    'tx' => 'text',
+                    'ammount' => 'varint',
+                    'completed' => 'boolean',
+                    'failed' => 'boolean',
+                    'contract' => 'text',
+                    'data' => 'text',
+                ],
+                'primaryKeys' => [
+                    'user_guid',
+                    'timestamp',
+                    'wallet_address',
+                    'tx'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (timestamp DESC, wallet_address ASC, tx ASC)',
+                    'bloom_filter_fp_chance = 0.01',
+                    'caching = {\'keys\': \'ALL\', \'rows_per_partition\': \'NONE\'}',
+                    'comment = \'\'',
+                    'compaction = {\'class\': \'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy\', \'max_threshold\': \'32\', \'min_threshold\': \'4\'}',
+                    'compression = {\'chunk_length_in_kb\': \'64\', \'class\': \'org.apache.cassandra.io.compress.LZ4Compressor\'}',
+                    'crc_check_chance = 1.0',
+                    'dclocal_read_repair_chance = 0.1',
+                    'default_time_to_live = 0',
+                    'gc_grace_seconds = 864000',
+                    'max_index_interval = 2048',
+                    'memtable_flush_period_in_ms = 0',
+                    'min_index_interval = 128',
+                    'read_repair_chance = 0.0',
+                    'speculative_retry = \'99PERCENTILE\'',
+                ]
+            ],
+            'withdrawals' => [
+                'schema' => [
+                    'user_guid' => 'varint',
+                    'timestamp' => 'timestamp',
+                    'amount' => 'decimal',
+                    'tx' => 'text',
+                    'completed' => 'boolean'
+                    ],
+                'primaryKeys' => [
+                    'user_guid',
+                    'timestamp',
+                    'tx'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (timestamp DESC)'
+                ]
+            ],
             'reports' => [
                 'schema' => [
                     'guid' => 'varint',
@@ -200,6 +268,58 @@ class CassandraProvisioner implements ProvisionerInterface
                     'compaction = {\'class\': \'org.apache.cassandra.db.compaction.LeveledCompactionStrategy\'}',
                     'CLUSTERING ORDER BY (place ASC)'
                 ]
+            ],
+            'subscriptions' => [
+                'schema' => [
+                    'plan_id' => 'text',
+                    'payment_method' => 'text',
+                    'entity_guid' => 'varint',
+                    'user_guid' => 'varint',
+                    'amount' => 'decimal',
+                    'last_billing' => 'timestamp',
+                    'next_billing' => 'timestamp',
+                    'interval' => 'text',
+                    'status' => 'text',
+                    'subscription_id' => 'text',
+                ],
+                'primaryKeys' => [
+                    'plan_id',
+                    'payment_method',
+                    'entity_guid',
+                    'user_guid',
+                    'subscription_id'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (payment_method ASC, entity_guid ASC, user_guid ASC)'
+                ]
+            ],
+            'payments' => [
+                'schema' => [
+                    'type' => 'text',
+                    'user_guid' => 'varint',
+                    'time_created' => 'timestamp',
+                    'payment_id' => 'text',
+                    'amount' => 'decimal',
+                    'description' => 'text',
+                    'payment_method' => 'text',
+                    'status' => 'text',
+                    'subscription_id' => 'text',
+                ],
+                'primaryKeys' => [
+                    'type',
+                    'user_guid',
+                    'time_created',
+                    'payment_id'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (user_guid ASC, time_created DESC, payment_id ASC)'
+                ]
+            ],
+            'locks' => [
+                'schema' => [
+                    'key' => 'text',
+                ],
+                'primaryKeys' => ['key']
             ]
         ];
 
@@ -311,6 +431,48 @@ class CassandraProvisioner implements ProvisionerInterface
                     'CLUSTERING ORDER BY (plan ASC, entity_guid ASC, status ASC)'
                 ]
             ],
+            'blockchain_transactions_by_address' => [
+                'from' => 'blockchain_transactions_mainnet',
+                'select' => [
+                    'wallet_address',
+                    'user_guid',
+                    'timestamp',
+                    'tx',
+                    'amount',
+                    'completed',
+                    'failed',
+                    'data',
+                ],
+                'conditions' => [
+                    'user_guid IS NOT NULL',
+                    'wallet_address IS NOT NULL',
+                    'timestamp IS NOT NULL',
+                    'tx IS NOT NULL'
+                ],
+                'primaryKeys' => [
+                    'wallet_address',
+                    'user_guid',
+                    'timestamp',
+                    'tx',
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (user_guid DESC, timestamp DESC, tx ASC)',
+                    'bloom_filter_fp_chance = 0.01',
+                    'caching = {\'keys\': \'ALL\', \'rows_per_partition\': \'NONE\'}',
+                    'comment = \'\'',
+                    'compaction = {\'class\': \'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy\', \'max_threshold\': \'32\', \'min_threshold\': \'4\'}',
+                    'compression = {\'chunk_length_in_kb\': \'64\', \'class\': \'org.apache.cassandra.io.compress.LZ4Compressor\'}',
+                    'crc_check_chance = 1.0',
+                    'dclocal_read_repair_chance = 0.1',
+                    'default_time_to_live = 0',
+                    'gc_grace_seconds = 864000',
+                    'max_index_interval = 2048',
+                    'memtable_flush_period_in_ms = 0',
+                    'min_index_interval = 128',
+                    'read_repair_chance = 0.0',
+                    'speculative_retry = \'99PERCENTILE\'',
+                ]
+            ],
             'reports_by_owner' => [
                 'from' => 'reports',
                 'select' => [
@@ -394,6 +556,72 @@ class CassandraProvisioner implements ProvisionerInterface
                 ],
                 'attributes' => [
                     'CLUSTERING ORDER BY (mongo_id ASC, guid ASC)'
+                ]
+            ],
+            'recurring_subscriptions_by_subscription_id' => [
+                'from' => 'recurring_subscriptions',
+                'select' => [ '*' ],
+                'conditions' => [
+                    'type IS NOT NULL',
+                    'payment_method IS NOT NULL',
+                    'entity_guid IS NOT NULL',
+                    'user_guid IS NOT NULL',
+                    'subscription_id IS NOT NULL'
+                ],
+                'primaryKeys' => [
+                    'subscription_id', 'type', 'payment_method', 'entity_guid', 'user_guid'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (type ASC, payment_method ASC, entity_guid ASC, user_guid ASC)'
+                ]
+            ],
+            'recurring_subscriptions_by_user_guid' => [
+                'from' => 'recurring_subscriptions',
+                'select' => [ '*' ],
+                'conditions' => [
+                    'type IS NOT NULL',
+                    'payment_method IS NOT NULL',
+                    'entity_guid IS NOT NULL',
+                    'user_guid IS NOT NULL'
+                ],
+                'primaryKeys' => [
+                    'user_guid', 'type', 'payment_method', 'entity_guid'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (type ASC, payment_method ASC, entity_guid ASC)'
+                ]
+            ],
+            'payments_by_subscription_id' => [
+                'from' => 'payments',
+                'select' => [ '*' ],
+                'conditions' => [
+                    'type IS NOT NULL',
+                    'user_guid IS NOT NULL',
+                    'time_created IS NOT NULL',
+                    'payment_id IS NOT NULL',
+                    'subscription_id IS NOT NULL'
+                ],
+                'primaryKeys' => [
+                    'subscription_id', 'type', 'user_guid', 'time_created', 'payment_id'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (type ASC, user_guid ASC, time_created DESC, payment_id ASC)'
+                ]
+            ],
+            'payments_by_payment_id' => [
+                'from' => 'payments',
+                'select' => [ '*' ],
+                'conditions' => [
+                    'type IS NOT NULL',
+                    'user_guid IS NOT NULL',
+                    'time_created IS NOT NULL',
+                    'payment_id IS NOT NULL'
+                ],
+                'primaryKeys' => [
+                    'payment_id', 'type', 'user_guid', 'time_created'
+                ],
+                'attributes' => [
+                    'CLUSTERING ORDER BY (type ASC, user_guid ASC, time_created DESC)'
                 ]
             ],
         ];

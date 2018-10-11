@@ -2,6 +2,8 @@
 namespace Minds\Core;
 
 use Minds\Core;
+use Minds\Core\Di\Di;
+use Minds\Common\Cookie;
 use Minds\Entities\User;
 
 /**
@@ -12,11 +14,23 @@ class Session extends base
 {
     private $session_name = 'minds';
 
-    public function __construct($force = null)
+    /** @var Config $config */
+    private $config;
+
+    public function __construct($force = null, $config = null)
     {
+        $this->config = $config ?: Di::_()->get('Config');
+
         session_set_save_handler(new core\Data\Sessions());
 
         ini_set('session.cookie_lifetime', 60 * 60 * 24 * 30); // Persistent cookies - 30 days
+        ini_set('session.cookie_secure', $this->config->disable_secure_cookies ? 'off' : 'on');
+        ini_set('session.cookie_httponly', 'on');
+
+        if (isset($_COOKIE['disable_cookies'])) {
+            ini_set('session.use_cookies', false);
+        }
+
         session_name('minds');
         session_start();
 
@@ -43,19 +57,30 @@ class Session extends base
 
         // Generate a simple token (private from potentially public session id)
         if (!isset($_SESSION['__elgg_session'])) {
-            $_SESSION['__elgg_session'] = md5(microtime() . rand());
+            $bytes = openssl_random_pseudo_bytes(128);
+            $_SESSION['__elgg_session'] = hash('sha512', microtime() . $bytes);
         }
 
+        $loggedInCookie = new Cookie();
+        $loggedInCookie
+            ->setName('loggedin')
+            ->setExpire(time() + (60 * 60 * 24 * 30))
+            ->setPath('/');
+            
         if (isset($_SESSION['user'])) {
-            setcookie('loggedin', 1, time() + (60 * 60 * 24 * 30), '/');
+            $loggedInCookie->setValue(1);
             cache_entity($_SESSION['user']);
         } else {
-            setcookie('loggedin', 0, time() + (60 * 60 * 24 * 30), '/');
+            $loggedInCookie->setValue(0);
         }
+
+        $loggedInCookie->create();
 
 
         if (!isset($_COOKIE['loggedin'])) {
-            setcookie('loggedin', 0, time() + (60 * 60 * 24 * 30), '/');
+            $loggedInCookie
+                ->setValue(0)
+                ->create();
             $_SESSION = array();
             unset($_COOKIE[session_name()]);
             session_destroy();
@@ -74,6 +99,14 @@ class Session extends base
      */
     public function shutdown()
     {
+        //double check no loggedin cookie ensures session destroy
+        if (!isset($_COOKIE['loggedin']) || $_COOKIE['loggedin'] == 0) {
+            $_SESSION = [];
+            if (session_status() == PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+        }
+
         if (isset($_COOKIE[session_name()]) && !isset($_SESSION['user']) && !isset($_SESSION['force'])) {
             //clear session from disk
             $params = session_get_cookie_params();
@@ -85,7 +118,7 @@ class Session extends base
             unset($_COOKIE[session_name()]);
             if (session_status() == PHP_SESSION_ACTIVE) {
                 session_destroy();
-            }
+            } 
         }
     }
 
@@ -114,7 +147,15 @@ class Session extends base
               'guid' => (string) $_SESSION['user']->guid,
               'sessionId' => session_id()
             ], Config::_()->get('sockets-jwt-secret'));
-            setcookie('socket_jwt', $jwt, 0, '/', Config::_()->get('sockets-jwt-domain') ?: 'minds.com');
+
+            $cookie = new Cookie();
+            $cookie
+                ->setName('socket_jwt')
+                ->setValue($jwt)
+                ->setExpire(0)
+                ->setPath('/')
+                ->setDomain(Config::_()->get('sockets-jwt-domain') ?: 'minds.com')
+                ->create();
         }
     }
 
